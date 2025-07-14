@@ -72,7 +72,7 @@ A CLI utility for exporting data from Figma (colors, typography, icons, images) 
   # or with options:
   node figma-export.js icons -f icon_sprite -o ./output -n icons.scss
   ```
-  Saves SCSS for icons from the sprite.
+  Saves SCSS for icons from the sprite. Works with `icons_sprite` frame by default, but you can pass any frame name to generate icons SCSS from.
 
 - **Export images:**
   ```bash
@@ -80,7 +80,7 @@ A CLI utility for exporting data from Figma (colors, typography, icons, images) 
   # or with options:
   node figma-export.js images -o ./output -f FrameName --list
   ```
-  Saves images from exportable nodes.
+  Saves images from all exportable nodes. If specific frame name is passed as `--frame` parameter, exportable images will be saved from this frame only.
 
 - **Run all exports:**
   ```bash
@@ -101,9 +101,9 @@ Export only variables:
 node figma-export.js variables -o ./output
 ```
 
-Export icons from the `icon_sprite` frame:
+Export icons from the `empty_states` frame:
 ```bash
-node figma-export.js icons -f icon_sprite -o ./output
+node figma-export.js icons -f empty_states -o ./output
 ```
 
 Export images from the `Assets` frame:
@@ -113,18 +113,8 @@ node figma-export.js images -f Assets -o ./output
 
 ## FAQ
 
-**Q: Why aren't my variables exported?**
-- Make sure variables in Figma are organized as separate rows (`Palette row`, `Typekit row`).
-- Check that your token and file URL in `.env` are correct.
-
-**Q: How do I add new themes?**
-- Just add new themes in Figma; the export is fully generic.
-
-**Q: How do I add new platforms for typography?**
-- Similarly: add new platforms in Figma, the export supports any keys.
-
 **Q: How do I refresh the cache?**
-- Use the `-u` or `--update` flag with any command.
+- Use the `-u` or `--update` flag with any command. `content` and `all` commands always retrieve fresh data from Figma file.
 
 ---
 
