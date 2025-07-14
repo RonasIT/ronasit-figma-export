@@ -1,4 +1,4 @@
-# figma-export-tool
+# Ronas IT Figma export tool
 
 A CLI utility for exporting data from Figma (colors, typography, icons, images) to JSON and SCSS for frontend use.
 
