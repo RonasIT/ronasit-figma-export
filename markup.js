@@ -360,14 +360,45 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
     // Box-shadow
     if (Array.isArray(node.effects)) {
       const shadows = node.effects.filter(e => e.type === 'DROP_SHADOW' && e.visible !== false);
-      if (shadows.length > 0) {
-        const shadowStrs = shadows.map(e => {
-          const color = e.color ? colorToCss(e.color, e.color.a) : 'rgba(0,0,0,0.25)';
+      // Получаем variableID для box-shadow, если есть
+      let shadowVarId = null;
+      if (node.boundVariables && node.boundVariables.effects) {
+        let effectVars = node.boundVariables.effects;
+        if (Array.isArray(effectVars)) {
+          const effectVar = effectVars.find(v => v.type === 'VARIABLE_ALIAS' && v.id);
+          if (effectVar && effectVar.id) {
+            shadowVarId = effectVar.id;
+          }
+        } else if (typeof effectVars === 'object' && effectVars !== null) {
+          if (effectVars.type === 'VARIABLE_ALIAS' && effectVars.id) {
+            shadowVarId = effectVars.id;
+          }
+        }
+      }
+      const validShadows = shadows.filter(e => {
+        let shadowColor = null;
+        if (shadowVarId) {
+          shadowColor = getScssVarById(shadowVarId);
+        }
+        if (!shadowColor && e.color) {
+          shadowColor = colorToCss(e.color, e.color.a);
+        }
+        return !!shadowColor;
+      });
+      if (validShadows.length > 0) {
+        const shadowStrs = validShadows.map(e => {
+          let shadowColor = null;
+          if (shadowVarId) {
+            shadowColor = getScssVarById(shadowVarId);
+          }
+          if (!shadowColor && e.color) {
+            shadowColor = colorToCss(e.color, e.color.a);
+          }
           const x = typeof e.offset?.x === 'number' ? formatNum(e.offset.x) : 0;
           const y = typeof e.offset?.y === 'number' ? formatNum(e.offset.y) : 0;
           const blur = typeof e.radius === 'number' ? formatNum(e.radius) : 0;
           const spread = typeof e.spread === 'number' ? formatNum(e.spread) : 0;
-          return `${x}px ${y}px ${blur}px ${spread}px ${color}`.replace(' 0px', '');
+          return `${x}px ${y}px ${blur}px ${spread}px ${shadowColor}`.replace(' 0px', '');
         });
         props.push(`box-shadow: ${shadowStrs.join(', ')};`);
       }
