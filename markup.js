@@ -158,7 +158,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
   }
 
   // Generate SCSS for a node
-  function nodeToScss(node, className, parentLayoutMode = null) {
+  function nodeToScss(node, className, parentLayoutMode = null, parentNode = null) {
     // For INSTANCE nodes, do not generate SCSS for children or self
     if (node.type === 'INSTANCE') {
       return '';
@@ -170,6 +170,47 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         if (varId === id) return `var(--${varName})`;
       }
       return null;
+    }
+    // --- Абсолютное позиционирование ---
+    if (node.layoutPositioning === 'ABSOLUTE') {
+      props.push('position: absolute;');
+      if (node.absoluteBoundingBox && parentNode && parentNode.absoluteBoundingBox) {
+        const parentBox = parentNode.absoluteBoundingBox;
+        const box = node.absoluteBoundingBox;
+        // constraints: { horizontal: 'LEFT'|'RIGHT'|'CENTER'|'SCALE', vertical: ... }
+        const constraints = node.constraints || {};
+        // Horizontal
+        if (constraints.horizontal === 'RIGHT') {
+          const right = (parentBox.x + parentBox.width) - (box.x + box.width);
+          props.push(`right: ${formatNum(right)}px;`);
+        } else if (constraints.horizontal === 'CENTER') {
+          // Centering: left = (parentWidth - width)/2
+          const left = (parentBox.width - box.width) / 2;
+          props.push(`left: ${formatNum(left)}px;`);
+        } else if (constraints.horizontal === 'SCALE') {
+          // Not implemented, fallback to left
+          const left = box.x - parentBox.x;
+          props.push(`left: ${formatNum(left)}px;`);
+        } else { // LEFT or default
+          const left = box.x - parentBox.x;
+          props.push(`left: ${formatNum(left)}px;`);
+        }
+        // Vertical
+        if (constraints.vertical === 'BOTTOM') {
+          const bottom = (parentBox.y + parentBox.height) - (box.y + box.height);
+          props.push(`bottom: ${formatNum(bottom)}px;`);
+        } else if (constraints.vertical === 'CENTER') {
+          const top = (parentBox.height - box.height) / 2;
+          props.push(`top: ${formatNum(top)}px;`);
+        } else if (constraints.vertical === 'SCALE') {
+          // Not implemented, fallback to top
+          const top = box.y - parentBox.y;
+          props.push(`top: ${formatNum(top)}px;`);
+        } else { // TOP or default
+          const top = box.y - parentBox.y;
+          props.push(`top: ${formatNum(top)}px;`);
+        }
+      }
     }
     // Text node properties
     if (node.type === 'TEXT') {
@@ -465,17 +506,38 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
   const rootEntry = classEntries.find(([, node]) => node === figmaNode);
   let scss = '';
   if (rootEntry) {
-    const rootRule = nodeToScss(figmaNode, rootClass, null);
-    scss += `.${rootClass} {${rootRule ? rootRule + '\n' : ''}`;
+    // Собираем карту id -> node для быстрого доступа
+    const idMap = new Map();
+    for (const [, node] of classEntries) {
+      if (node.id) idMap.set(node.id, node);
+    }
+    // Для каждого класса определяем, есть ли среди детей абсолютные
+    const absChildMap = new Map();
+    for (const [, node] of classEntries) {
+      if (node.children && node.children.length > 0) {
+        absChildMap.set(node.id, node.children.some(child => child.layoutPositioning === 'ABSOLUTE'));
+      }
+    }
+    const rootRule = nodeToScss(figmaNode, rootClass, null, null);
+    let rootRuleWithRel = rootRule;
+    if (absChildMap.get(figmaNode.id)) {
+      rootRuleWithRel = 'position: relative; ' + rootRule;
+    }
+    scss += `.${rootClass} {${rootRuleWithRel ? rootRuleWithRel + '\n' : ''}`;
     classEntries.forEach(([className, node]) => {
       if (node === figmaNode) return;
       // Определяем непосредственного родителя
       const parent = parentMap.get(node.id);
       const parentLayoutMode = parent && parent.layoutMode ? parent.layoutMode : null;
-      const rule = nodeToScss(node, className, parentLayoutMode);
-      if (rule) {
+      // Если у родителя есть абсолютные дети, передаём parentNode
+      const rule = nodeToScss(node, className, parentLayoutMode, parent);
+      let ruleWithRel = rule;
+      if (absChildMap.get(node.id)) {
+        ruleWithRel = 'position: relative; ' + rule;
+      }
+      if (ruleWithRel) {
         const nested = className.startsWith(rootClass + '_') ? '&' + className.slice(rootClass.length) : `.${className}`;
-        const indentedRule = rule.replace(/\n/g, '\n  ');
+        const indentedRule = ruleWithRel.replace(/\n/g, '\n  ');
         if (!indentedRule.includes('\n')) {
           scss += `  ${nested} {${indentedRule}}\n`;
         } else {
