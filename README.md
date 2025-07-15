@@ -116,6 +116,48 @@ node figma-export.js images -f Assets -o ./output
 **Q: How do I refresh the cache?**
 - Use the `-u` or `--update` flag with any command. `content` and `all` commands always retrieve fresh data from Figma file.
 
+## Markup.js: Figma to React/SCSS Converter
+
+`markup.js` is a CLI utility for converting a Figma frame, component, or any other node into React JSX and SCSS with support for variables, auto layout, typography, and advanced styles.
+
+### Features
+- Generates JSX templates and SCSS styles for the selected Figma frame.
+- Supports SCSS variables for colors, sizes, fonts, font-weight, and other properties.
+- For INSTANCE nodes, generates a React component with props.
+- Supports variant selection inside a component via the `--variant` option.
+
+### Usage
+
+```bash
+node markup.js --frame "Frame Name" [--variant "Variant Name"] [--output ./output] [--name ComponentName] [--json]
+```
+
+#### Main Options
+- `-f, --frame <name>` — Figma frame/node name (required)
+- `-v, --variant <name>` — variant node name inside the component (optional)
+- `-o, --output <dir>` — output directory (default: ./output)
+- `-n, --name <component>` — component/class name for the root node (default: frame or variant name)
+- `--json` — also save the selected node as JSON
+
+#### Examples
+
+Export markup and styles for a frame:
+```bash
+node markup.js --frame "Chat Message"
+```
+
+Export for a variant inside a component:
+```bash
+node markup.js --frame "Chat Message" --variant "Active"
+```
+
+If multiple nodes with the same name are found, the utility will prompt you to select the desired one.
+
+#### Output Files
+- `ComponentName.jsx` — React JSX for the selected node
+- `ComponentName.scss` — SCSS for the selected node
+- `ComponentName.json` — (optional) JSON of the selected node
+
 ---
 
 If you have questions or find bugs, please open an issue or contact the author. 
