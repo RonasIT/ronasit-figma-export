@@ -81,7 +81,33 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         classMap.set(nodeClass, node);
       }
       const componentName = toPascalCase(node.name);
-      return `${indentStr}<${componentName} className=\"${nodeClass}\" />`;
+      // Convert componentProperties to JSX props
+      let propsStr = `className=\"${nodeClass}\"`;
+      if (node.componentProperties && typeof node.componentProperties === 'object') {
+        for (const [key, valueObj] of Object.entries(node.componentProperties)) {
+          // Remove # and everything after for prop name
+          let cleanKey = key.includes('#') ? key.split('#')[0] : key;
+          let pascal = toPascalCase(cleanKey);
+          let propName = pascal.charAt(0).toLowerCase() + pascal.slice(1);
+          let propValue = valueObj && typeof valueObj.value !== 'undefined' ? valueObj.value : valueObj;
+          if (typeof propValue === 'string') {
+            // Convert 'True'/'False' to boolean
+            if (propValue.toLowerCase() === 'true') {
+              propsStr += ` ${propName}={true}`;
+            } else if (propValue.toLowerCase() === 'false') {
+              propsStr += ` ${propName}={false}`;
+            } else {
+              // Convert string values to camelCase as well
+              let pascalVal = toPascalCase(propValue);
+              let camelVal = pascalVal.charAt(0).toLowerCase() + pascalVal.slice(1);
+              propsStr += ` ${propName}=\"${camelVal}\"`;
+            }
+          } else if (typeof propValue === 'number' || typeof propValue === 'boolean') {
+            propsStr += ` ${propName}={${propValue}}`;
+          }
+        }
+      }
+      return `${indentStr}<${componentName} ${propsStr} />`;
     }
     let childrenJsx = '';
     if (node.children && node.children.length > 0) {
@@ -124,9 +150,14 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         const a = node.fills[0].opacity !== undefined ? node.fills[0].opacity : 1;
         props.push(`color: ${colorToCss(c, a)};`);
       }
+      // Opacity
+      if (typeof node.opacity === 'number') {
+        props.push(`opacity: ${formatNum(node.opacity)};`);
+      }
       const style = node.style || {};
-      if (typeof style.fontWeight === 'number') {
-        props.push(`font-weight: ${formatNum(style.fontWeight)};`);
+      // Use fontStyle as font-weight (per user request)
+      if (typeof style.fontStyle === 'string') {
+        props.push(`font-weight: ${style.fontStyle};`);
       }
       if (typeof style.fontSize === 'number') {
         props.push(`font-size: ${formatNum(style.fontSize)}px;`);
@@ -150,14 +181,42 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         const a = node.fills[0].opacity !== undefined ? node.fills[0].opacity : 1;
         props.push(`background: ${colorToCss(c, a)};`);
       }
+      // Opacity
+      if (typeof node.opacity === 'number') {
+        props.push(`opacity: ${formatNum(node.opacity)};`);
+      }
+      // Border radius
       if (node.cornerRadius !== undefined) {
         props.push(`border-radius: ${formatNum(node.cornerRadius)}px;`);
       }
+      // Border
       if (node.strokes && Array.isArray(node.strokes) && node.strokes[0] && node.strokes[0].color) {
         const c = node.strokes[0].color;
         const a = node.strokes[0].opacity !== undefined ? node.strokes[0].opacity : 1;
         props.push(`border: 1px solid ${colorToCss(c, a)};`);
       }
+      // Box-shadow (DROP_SHADOW effects)
+      if (Array.isArray(node.effects)) {
+        const shadows = node.effects.filter(e => e.type === 'DROP_SHADOW' && e.visible !== false);
+        if (shadows.length > 0) {
+          const shadowStrs = shadows.map(e => {
+            const color = e.color ? colorToCss(e.color, e.color.a) : 'rgba(0,0,0,0.25)';
+            const x = typeof e.offset?.x === 'number' ? formatNum(e.offset.x) : 0;
+            const y = typeof e.offset?.y === 'number' ? formatNum(e.offset.y) : 0;
+            const blur = typeof e.radius === 'number' ? formatNum(e.radius) : 0;
+            const spread = typeof e.spread === 'number' ? formatNum(e.spread) : 0;
+            return `${x}px ${y}px ${blur}px ${spread}px ${color}`.replace(' 0px', '');
+          });
+          props.push(`box-shadow: ${shadowStrs.join(', ')};`);
+        }
+      }
+      // Overflow
+      if (typeof node.overflowDirection === 'string' && node.overflowDirection !== 'NONE') {
+        props.push('overflow: scroll;');
+      } else if (node.clipsContent === true) {
+        props.push('overflow: hidden;');
+      }
+      // Flexbox layout
       if (node.layoutMode === 'HORIZONTAL' || node.layoutWrap === true) {
         props.push('display: flex;');
         if (typeof node.paddingLeft === 'number' && typeof node.paddingRight === 'number' && typeof node.paddingTop === 'number' && typeof node.paddingBottom === 'number') {
@@ -166,6 +225,47 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         if (typeof node.itemSpacing === 'number') {
           props.push(`gap: ${formatNum(node.itemSpacing)}px;`);
         }
+        // flex-wrap
+        if ('layoutWrap' in node) {
+          props.push(`flex-wrap: ${node.layoutWrap === 'WRAP' ? 'wrap' : 'nowrap'};`);
+        }
+        // primaryAxisAlignItems -> justify-content
+        if (typeof node.primaryAxisAlignItems === 'string') {
+          let justify = 'flex-start';
+          switch (node.primaryAxisAlignItems) {
+            case 'MIN': justify = 'flex-start'; break;
+            case 'CENTER': justify = 'center'; break;
+            case 'MAX': justify = 'flex-end'; break;
+            case 'SPACE_BETWEEN': justify = 'space-between'; break;
+          }
+          props.push(`justify-content: ${justify};`);
+        }
+        // counterAxisAlignItems -> align-items
+        if (typeof node.counterAxisAlignItems === 'string') {
+          let align = 'flex-start';
+          switch (node.counterAxisAlignItems) {
+            case 'MIN': align = 'flex-start'; break;
+            case 'CENTER': align = 'center'; break;
+            case 'MAX': align = 'flex-end'; break;
+            case 'BASELINE': align = 'baseline'; break;
+            case 'SPACE_BETWEEN': align = 'space-between'; break;
+          }
+          props.push(`align-items: ${align};`);
+        }
+      }
+      // Max width/height
+      if (typeof node.maxWidth === 'number') {
+        props.push(`max-width: ${formatNum(node.maxWidth)}px;`);
+      }
+      if (typeof node.maxHeight === 'number') {
+        props.push(`max-height: ${formatNum(node.maxHeight)}px;`);
+      }
+      // width/height only if layoutSizingHorizontal/Vertical is FIXED
+      if (node.layoutSizingHorizontal === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.width === 'number') {
+        props.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
+      }
+      if (node.layoutSizingVertical === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.height === 'number') {
+        props.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
       }
     }
     return props.join(' ');
