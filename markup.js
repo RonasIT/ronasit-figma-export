@@ -11,6 +11,14 @@ const path = require('path');
  * @returns {{ html: string, css: string }}
  */
 function convertFigmaToMarkup(figmaNode, rootClassOverride) {
+  // Load variableIds.json if present
+  let variableIdMap = {};
+  try {
+    variableIdMap = JSON.parse(fs.readFileSync(path.join('./output/variableIds.json'), 'utf-8'));
+  } catch (e) {
+    // ignore if not found
+  }
+
   // Helper to sanitize class names
   function sanitize(name) {
     return String(name).toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
@@ -135,17 +143,30 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
     }
   }
 
-  // Generate SCSS for a node (returns only the class rule, not nested)
+  // Generate SCSS for a node
   function nodeToScss(node, className) {
     // For INSTANCE nodes, do not generate SCSS for children or self
     if (node.type === 'INSTANCE') {
       return '';
     }
     let props = [];
+    // Helper to resolve SCSS variable by boundVariable
+    function getScssVarById(id) {
+      for (const [varName, varId] of Object.entries(variableIdMap)) {
+        if (varId === id) return `var(--${varName})`;
+      }
+      return null;
+    }
     // Text node properties
     if (node.type === 'TEXT') {
       // fills -> color
-      if (node.fills && Array.isArray(node.fills) && node.fills[0] && node.fills[0].color) {
+      let colorVar = null;
+      if (node.boundVariables && node.boundVariables.fills && Array.isArray(node.boundVariables.fills) && node.boundVariables.fills[0]?.id) {
+        colorVar = getScssVarById(node.boundVariables.fills[0].id);
+      }
+      if (colorVar) {
+        props.push(`color: ${colorVar};`);
+      } else if (node.fills && Array.isArray(node.fills) && node.fills[0] && node.fills[0].color) {
         const c = node.fills[0].color;
         const a = node.fills[0].opacity !== undefined ? node.fills[0].opacity : 1;
         props.push(`color: ${colorToCss(c, a)};`);
@@ -159,7 +180,20 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
       if (typeof style.fontStyle === 'string') {
         props.push(`font-weight: ${style.fontStyle};`);
       }
-      if (typeof style.fontSize === 'number') {
+      // font-size variable
+      let fontSizeVar = null;
+      if (node.boundVariables && node.boundVariables.fontSize) {
+        // поддержка и объекта, и массива
+        const fontSizeId = Array.isArray(node.boundVariables.fontSize)
+          ? node.boundVariables.fontSize[0]?.id
+          : node.boundVariables.fontSize.id;
+        if (fontSizeId) {
+          fontSizeVar = getScssVarById(fontSizeId);
+        }
+      }
+      if (fontSizeVar) {
+        props.push(`font-size: ${fontSizeVar};`);
+      } else if (typeof style.fontSize === 'number') {
         props.push(`font-size: ${formatNum(style.fontSize)}px;`);
       }
       if (typeof style.textAlignHorizontal === 'string') {
@@ -176,7 +210,14 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
       }
     } else {
       // Non-text nodes
-      if (node.fills && Array.isArray(node.fills) && node.fills[0] && node.fills[0].color) {
+      // background variable
+      let bgVar = null;
+      if (node.boundVariables && node.boundVariables.fills && Array.isArray(node.boundVariables.fills) && node.boundVariables.fills[0]?.id) {
+        bgVar = getScssVarById(node.boundVariables.fills[0].id);
+      }
+      if (bgVar) {
+        props.push(`background: ${bgVar};`);
+      } else if (node.fills && Array.isArray(node.fills) && node.fills[0] && node.fills[0].color) {
         const c = node.fills[0].color;
         const a = node.fills[0].opacity !== undefined ? node.fills[0].opacity : 1;
         props.push(`background: ${colorToCss(c, a)};`);
@@ -190,12 +231,18 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         props.push(`border-radius: ${formatNum(node.cornerRadius)}px;`);
       }
       // Border
-      if (node.strokes && Array.isArray(node.strokes) && node.strokes[0] && node.strokes[0].color) {
+      let borderVar = null;
+      if (node.boundVariables && node.boundVariables.strokes && Array.isArray(node.boundVariables.strokes) && node.boundVariables.strokes[0]?.id) {
+        borderVar = getScssVarById(node.boundVariables.strokes[0].id);
+      }
+      if (borderVar) {
+        props.push(`border: 1px solid ${borderVar};`);
+      } else if (node.strokes && Array.isArray(node.strokes) && node.strokes[0] && node.strokes[0].color) {
         const c = node.strokes[0].color;
         const a = node.strokes[0].opacity !== undefined ? node.strokes[0].opacity : 1;
         props.push(`border: 1px solid ${colorToCss(c, a)};`);
       }
-      // Box-shadow (DROP_SHADOW effects)
+      // Box-shadow
       if (Array.isArray(node.effects)) {
         const shadows = node.effects.filter(e => e.type === 'DROP_SHADOW' && e.visible !== false);
         if (shadows.length > 0) {
@@ -268,30 +315,53 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         props.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
       }
     }
-    return props.join(' ');
+    // Форматирование: первая строка после { максимально длинная (до 80 символов), остальные — с отступом
+    let scssLines = [];
+    let line = '';
+    props.forEach((prop, i) => {
+      if ((line + (line ? ' ' : '') + prop).length > 80) {
+        scssLines.push(line.trim());
+        line = prop;
+      } else {
+        line += (line ? ' ' : '') + prop;
+      }
+    });
+    if (line) scssLines.push(line.trim());
+    // Первая строка — без отступа, остальные — с отступом
+    let scssRule = '';
+    if (scssLines.length > 0) {
+      scssRule = scssLines[0];
+      for (let i = 1; i < scssLines.length; i++) {
+        scssRule += '\n  ' + scssLines[i];
+      }
+    }
+    return scssRule;
   }
 
   const rootClass = sanitize(rootClassOverride ? rootClassOverride : figmaNode.name);
   const jsx = nodeToJsx(figmaNode, 0, true, rootClass);
 
-  // SCSS: always output rootClass (from --name or figmaNode.name) first, then all other classes indented inside
+  // SCSS: всегда выводим rootClass первым, затем все остальные классы вложенно
   const classEntries = Array.from(classMap.entries());
-  // Find the node that matches the actual root node (by id)
   const rootEntry = classEntries.find(([, node]) => node === figmaNode);
   let scss = '';
   if (rootEntry) {
     const rootRule = nodeToScss(figmaNode, rootClass);
-    scss += `.${rootClass} {${rootRule}`;
+    scss += `.${rootClass} {${rootRule ? rootRule + '\n' : ''}`;
     classEntries.forEach(([className, node]) => {
-      // Don't output the rootClass as a nested rule
       if (node === figmaNode) return;
       const rule = nodeToScss(node, className);
       if (rule) {
         const nested = className.startsWith(rootClass + '_') ? '&' + className.slice(rootClass.length) : `.${className}`;
-        scss += `\n  ${nested} {${rule}}`;
+        const indentedRule = rule.replace(/\n/g, '\n  ');
+        if (!indentedRule.includes('\n')) {
+          scss += `  ${nested} {${indentedRule}}\n`;
+        } else {
+          scss += `  ${nested} {${indentedRule}\n    }\n`;
+        }
       }
     });
-    scss += `\n}`;
+    scss += '}';
   }
 
   return {
