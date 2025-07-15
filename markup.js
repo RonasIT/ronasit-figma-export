@@ -76,6 +76,20 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
   // Collect unique class names and their corresponding nodes
   const classMap = new Map();
 
+  // Собираем карту id -> parentNode
+  const parentMap = new Map();
+  function buildParentMap(node, parent = null) {
+    if (node.id) {
+      parentMap.set(node.id, parent);
+    }
+    if (node.children && node.children.length > 0) {
+      for (const child of node.children) {
+        buildParentMap(child, node);
+      }
+    }
+  }
+  buildParentMap(figmaNode, null);
+
   // Recursively generate pretty JSX
   function nodeToJsx(node, indent = 0, isRoot = false, rootClassName = null) {
     const tag = getTag(node);
@@ -144,7 +158,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
   }
 
   // Generate SCSS for a node
-  function nodeToScss(node, className) {
+  function nodeToScss(node, className, parentLayoutMode = null) {
     // For INSTANCE nodes, do not generate SCSS for children or self
     if (node.type === 'INSTANCE') {
       return '';
@@ -159,26 +173,60 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
     }
     // Text node properties
     if (node.type === 'TEXT') {
-      // fills -> color
-      let colorVar = null;
-      if (node.boundVariables && node.boundVariables.fills && Array.isArray(node.boundVariables.fills) && node.boundVariables.fills[0]?.id) {
-        colorVar = getScssVarById(node.boundVariables.fills[0].id);
-      }
-      if (colorVar) {
-        props.push(`color: ${colorVar};`);
-      } else if (node.fills && Array.isArray(node.fills) && node.fills[0] && node.fills[0].color) {
-        const c = node.fills[0].color;
-        const a = node.fills[0].opacity !== undefined ? node.fills[0].opacity : 1;
-        props.push(`color: ${colorToCss(c, a)};`);
-      }
-      // Opacity
-      if (typeof node.opacity === 'number') {
-        props.push(`opacity: ${formatNum(node.opacity)};`);
-      }
       const style = node.style || {};
-      // Use fontStyle as font-weight (per user request)
-      if (typeof style.fontStyle === 'string') {
+      // --- Текстовые свойства ---
+      // color (fills) — поддержка переменных и fallback
+      let colorVar = null;
+      let fillVisible = true;
+      if (node.fills && Array.isArray(node.fills) && node.fills[0] && node.fills[0].visible === false) {
+        fillVisible = false;
+      }
+      if (fillVisible) {
+        if (node.boundVariables && node.boundVariables.fills) {
+          const colorId = Array.isArray(node.boundVariables.fills)
+            ? node.boundVariables.fills[0]?.id
+            : node.boundVariables.fills.id;
+          if (colorId) {
+            colorVar = getScssVarById(colorId);
+          }
+        }
+        if (colorVar) {
+          props.push(`color: ${colorVar};`);
+        } else if (node.fills && Array.isArray(node.fills) && node.fills[0] && node.fills[0].color) {
+          const c = node.fills[0].color;
+          const a = node.fills[0].opacity !== undefined ? node.fills[0].opacity : 1;
+          props.push(`color: ${colorToCss(c, a)};`);
+        }
+      }
+      // font-weight (fontStyle) — поддержка переменных и fallback
+      let fontWeightVar = null;
+      if (node.boundVariables && node.boundVariables.fontStyle) {
+        const fontWeightId = Array.isArray(node.boundVariables.fontStyle)
+          ? node.boundVariables.fontStyle[0]?.id
+          : node.boundVariables.fontStyle.id;
+        if (fontWeightId) {
+          fontWeightVar = getScssVarById(fontWeightId);
+        }
+      }
+      if (fontWeightVar) {
+        props.push(`font-weight: ${fontWeightVar};`);
+      } else if (typeof style.fontStyle === 'string') {
         props.push(`font-weight: ${style.fontStyle};`);
+      }
+      // font-family — поддержка переменных и fallback
+      let fontFamilyVar = null;
+      if (node.boundVariables && node.boundVariables.fontFamily) {
+        const fontFamilyId = Array.isArray(node.boundVariables.fontFamily)
+          ? node.boundVariables.fontFamily[0]?.id
+          : node.boundVariables.fontFamily.id;
+        if (fontFamilyId) {
+          fontFamilyVar = getScssVarById(fontFamilyId);
+        }
+      }
+      if (fontFamilyVar) {
+        props.push(`font-family: ${fontFamilyVar};`);
+      } else if (typeof style.fontFamily === 'string') {
+        props.push(`font-family: ${style.fontFamily};`);
       }
       // font-size variable
       let fontSizeVar = null;
@@ -196,22 +244,47 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
       } else if (typeof style.fontSize === 'number') {
         props.push(`font-size: ${formatNum(style.fontSize)}px;`);
       }
+      // text-align
       if (typeof style.textAlignHorizontal === 'string') {
         let align = style.textAlignHorizontal.toLowerCase();
         if (align === 'left' || align === 'right' || align === 'center' || align === 'justify') {
           props.push(`text-align: ${align};`);
         }
       }
+      // letter-spacing
       if (typeof style.letterSpacing === 'number') {
         props.push(`letter-spacing: ${formatNum(style.letterSpacing)}px;`);
       }
+      // line-height
       if (typeof style.lineHeightPercentFontSize === 'number') {
         props.push(`line-height: ${formatNum(style.lineHeightPercentFontSize)}%;`);
       }
-    } else {
-      // Non-text nodes
-      // background variable
-      let bgVar = null;
+    }
+    // --- Универсальные свойства (для всех узлов) ---
+    // Background только для не-текстовых узлов
+    let bgVar = null;
+    let bgVisible = true;
+    if (node.fills && Array.isArray(node.fills) && node.fills[0] && node.fills[0].visible === false) {
+      bgVisible = false;
+    }
+    if (bgVisible && node.type !== 'TEXT') {
+      // Фоновое изображение
+      if (node.fills && Array.isArray(node.fills)) {
+        const imageFill = node.fills.find(f => f.type === 'IMAGE');
+        if (imageFill) {
+          props.push('background: url(/img/image.png);');
+          if (imageFill.scaleMode === 'FILL') {
+            props.push('background-size: cover;');
+          } else if (imageFill.scaleMode === 'FIT') {
+            props.push('background-size: contain;');
+          } else if (imageFill.scaleMode === 'TILE') {
+            props.push('background-repeat: repeat;');
+          } else if (imageFill.scaleMode === 'CROP') {
+            props.push('background-size: cover;');
+            props.push('background-position: center;');
+          }
+        }
+      }
       if (node.boundVariables && node.boundVariables.fills && Array.isArray(node.boundVariables.fills) && node.boundVariables.fills[0]?.id) {
         bgVar = getScssVarById(node.boundVariables.fills[0].id);
       }
@@ -222,92 +295,122 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         const a = node.fills[0].opacity !== undefined ? node.fills[0].opacity : 1;
         props.push(`background: ${colorToCss(c, a)};`);
       }
-      // Opacity
-      if (typeof node.opacity === 'number') {
-        props.push(`opacity: ${formatNum(node.opacity)};`);
+    }
+    // Opacity
+    if (typeof node.opacity === 'number') {
+      props.push(`opacity: ${formatNum(node.opacity)};`);
+    }
+    // Border radius
+    if (node.cornerRadius !== undefined) {
+      props.push(`border-radius: ${formatNum(node.cornerRadius)}px;`);
+    }
+    // Border
+    let borderVar = null;
+    if (node.boundVariables && node.boundVariables.strokes && Array.isArray(node.boundVariables.strokes) && node.boundVariables.strokes[0]?.id) {
+      borderVar = getScssVarById(node.boundVariables.strokes[0].id);
+    }
+    if (borderVar) {
+      props.push(`border: 1px solid ${borderVar};`);
+    } else if (node.strokes && Array.isArray(node.strokes) && node.strokes[0] && node.strokes[0].color) {
+      const c = node.strokes[0].color;
+      const a = node.strokes[0].opacity !== undefined ? node.strokes[0].opacity : 1;
+      props.push(`border: 1px solid ${colorToCss(c, a)};`);
+    }
+    // Box-shadow
+    if (Array.isArray(node.effects)) {
+      const shadows = node.effects.filter(e => e.type === 'DROP_SHADOW' && e.visible !== false);
+      if (shadows.length > 0) {
+        const shadowStrs = shadows.map(e => {
+          const color = e.color ? colorToCss(e.color, e.color.a) : 'rgba(0,0,0,0.25)';
+          const x = typeof e.offset?.x === 'number' ? formatNum(e.offset.x) : 0;
+          const y = typeof e.offset?.y === 'number' ? formatNum(e.offset.y) : 0;
+          const blur = typeof e.radius === 'number' ? formatNum(e.radius) : 0;
+          const spread = typeof e.spread === 'number' ? formatNum(e.spread) : 0;
+          return `${x}px ${y}px ${blur}px ${spread}px ${color}`.replace(' 0px', '');
+        });
+        props.push(`box-shadow: ${shadowStrs.join(', ')};`);
       }
-      // Border radius
-      if (node.cornerRadius !== undefined) {
-        props.push(`border-radius: ${formatNum(node.cornerRadius)}px;`);
+    }
+    // Overflow
+    if (typeof node.overflowDirection === 'string' && node.overflowDirection !== 'NONE') {
+      props.push('overflow: scroll;');
+    } else if (node.clipsContent === true) {
+      props.push('overflow: hidden;');
+    }
+    // Flexbox layout
+    if (node.layoutMode === 'HORIZONTAL' || node.layoutMode === 'VERTICAL') {
+      props.push('display: flex;');
+      if (node.layoutMode === 'VERTICAL') {
+        props.push('flex-direction: column;');
       }
-      // Border
-      let borderVar = null;
-      if (node.boundVariables && node.boundVariables.strokes && Array.isArray(node.boundVariables.strokes) && node.boundVariables.strokes[0]?.id) {
-        borderVar = getScssVarById(node.boundVariables.strokes[0].id);
+      if (typeof node.paddingLeft === 'number' && typeof node.paddingRight === 'number' && typeof node.paddingTop === 'number' && typeof node.paddingBottom === 'number') {
+        props.push(`padding: ${formatNum(node.paddingTop)}px ${formatNum(node.paddingRight)}px ${formatNum(node.paddingBottom)}px ${formatNum(node.paddingLeft)}px;`);
       }
-      if (borderVar) {
-        props.push(`border: 1px solid ${borderVar};`);
-      } else if (node.strokes && Array.isArray(node.strokes) && node.strokes[0] && node.strokes[0].color) {
-        const c = node.strokes[0].color;
-        const a = node.strokes[0].opacity !== undefined ? node.strokes[0].opacity : 1;
-        props.push(`border: 1px solid ${colorToCss(c, a)};`);
+      if (typeof node.itemSpacing === 'number') {
+        props.push(`gap: ${formatNum(node.itemSpacing)}px;`);
       }
-      // Box-shadow
-      if (Array.isArray(node.effects)) {
-        const shadows = node.effects.filter(e => e.type === 'DROP_SHADOW' && e.visible !== false);
-        if (shadows.length > 0) {
-          const shadowStrs = shadows.map(e => {
-            const color = e.color ? colorToCss(e.color, e.color.a) : 'rgba(0,0,0,0.25)';
-            const x = typeof e.offset?.x === 'number' ? formatNum(e.offset.x) : 0;
-            const y = typeof e.offset?.y === 'number' ? formatNum(e.offset.y) : 0;
-            const blur = typeof e.radius === 'number' ? formatNum(e.radius) : 0;
-            const spread = typeof e.spread === 'number' ? formatNum(e.spread) : 0;
-            return `${x}px ${y}px ${blur}px ${spread}px ${color}`.replace(' 0px', '');
-          });
-          props.push(`box-shadow: ${shadowStrs.join(', ')};`);
+      // flex-wrap
+      if ('layoutWrap' in node) {
+        props.push(`flex-wrap: ${node.layoutWrap === 'WRAP' ? 'wrap' : 'nowrap'};`);
+      }
+      // primaryAxisAlignItems -> justify-content
+      if (typeof node.primaryAxisAlignItems === 'string') {
+        let justify = 'flex-start';
+        switch (node.primaryAxisAlignItems) {
+          case 'MIN': justify = 'flex-start'; break;
+          case 'CENTER': justify = 'center'; break;
+          case 'MAX': justify = 'flex-end'; break;
+          case 'SPACE_BETWEEN': justify = 'space-between'; break;
+        }
+        props.push(`justify-content: ${justify};`);
+      }
+      // counterAxisAlignItems -> align-items
+      if (typeof node.counterAxisAlignItems === 'string') {
+        let align = 'flex-start';
+        switch (node.counterAxisAlignItems) {
+          case 'MIN': align = 'flex-start'; break;
+          case 'CENTER': align = 'center'; break;
+          case 'MAX': align = 'flex-end'; break;
+          case 'BASELINE': align = 'baseline'; break;
+          case 'SPACE_BETWEEN': align = 'space-between'; break;
+        }
+        props.push(`align-items: ${align};`);
+      }
+    }
+    // Max width/height
+    if (typeof node.maxWidth === 'number') {
+      props.push(`max-width: ${formatNum(node.maxWidth)}px;`);
+    }
+    if (typeof node.maxHeight === 'number') {
+      props.push(`max-height: ${formatNum(node.maxHeight)}px;`);
+    }
+    // width/height/grow/shrink в зависимости от layoutSizing и направления layoutMode родителя
+    if (parentLayoutMode === 'HORIZONTAL' || parentLayoutMode === 'VERTICAL') {
+      if (parentLayoutMode === 'HORIZONTAL') {
+        if (node.layoutSizingHorizontal === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.width === 'number') {
+          props.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
+        } else if (node.layoutSizingHorizontal === 'FILL') {
+          props.push('flex-grow: 1; flex-shrink: 1;');
+        }
+        if (node.layoutSizingVertical === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.height === 'number') {
+          props.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
+        } else if (node.layoutSizingVertical === 'FILL') {
+          props.push('align-self: stretch;');
+        }
+      } else if (parentLayoutMode === 'VERTICAL') {
+        if (node.layoutSizingVertical === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.height === 'number') {
+          props.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
+        } else if (node.layoutSizingVertical === 'FILL') {
+          props.push('flex-grow: 1; flex-shrink: 1;');
+        }
+        if (node.layoutSizingHorizontal === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.width === 'number') {
+          props.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
+        } else if (node.layoutSizingHorizontal === 'FILL') {
+          props.push('align-self: stretch;');
         }
       }
-      // Overflow
-      if (typeof node.overflowDirection === 'string' && node.overflowDirection !== 'NONE') {
-        props.push('overflow: scroll;');
-      } else if (node.clipsContent === true) {
-        props.push('overflow: hidden;');
-      }
-      // Flexbox layout
-      if (node.layoutMode === 'HORIZONTAL' || node.layoutWrap === true) {
-        props.push('display: flex;');
-        if (typeof node.paddingLeft === 'number' && typeof node.paddingRight === 'number' && typeof node.paddingTop === 'number' && typeof node.paddingBottom === 'number') {
-          props.push(`padding: ${formatNum(node.paddingTop)}px ${formatNum(node.paddingRight)}px ${formatNum(node.paddingBottom)}px ${formatNum(node.paddingLeft)}px;`);
-        }
-        if (typeof node.itemSpacing === 'number') {
-          props.push(`gap: ${formatNum(node.itemSpacing)}px;`);
-        }
-        // flex-wrap
-        if ('layoutWrap' in node) {
-          props.push(`flex-wrap: ${node.layoutWrap === 'WRAP' ? 'wrap' : 'nowrap'};`);
-        }
-        // primaryAxisAlignItems -> justify-content
-        if (typeof node.primaryAxisAlignItems === 'string') {
-          let justify = 'flex-start';
-          switch (node.primaryAxisAlignItems) {
-            case 'MIN': justify = 'flex-start'; break;
-            case 'CENTER': justify = 'center'; break;
-            case 'MAX': justify = 'flex-end'; break;
-            case 'SPACE_BETWEEN': justify = 'space-between'; break;
-          }
-          props.push(`justify-content: ${justify};`);
-        }
-        // counterAxisAlignItems -> align-items
-        if (typeof node.counterAxisAlignItems === 'string') {
-          let align = 'flex-start';
-          switch (node.counterAxisAlignItems) {
-            case 'MIN': align = 'flex-start'; break;
-            case 'CENTER': align = 'center'; break;
-            case 'MAX': align = 'flex-end'; break;
-            case 'BASELINE': align = 'baseline'; break;
-            case 'SPACE_BETWEEN': align = 'space-between'; break;
-          }
-          props.push(`align-items: ${align};`);
-        }
-      }
-      // Max width/height
-      if (typeof node.maxWidth === 'number') {
-        props.push(`max-width: ${formatNum(node.maxWidth)}px;`);
-      }
-      if (typeof node.maxHeight === 'number') {
-        props.push(`max-height: ${formatNum(node.maxHeight)}px;`);
-      }
-      // width/height only if layoutSizingHorizontal/Vertical is FIXED
+    } else {
+      // Если нет layoutMode у родителя — только фиксированные размеры
       if (node.layoutSizingHorizontal === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.width === 'number') {
         props.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
       }
@@ -315,6 +418,22 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         props.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
       }
     }
+    // После формирования props фильтруем свойства с дефолтными значениями
+    const defaultVars = {
+      'color': 'var(--text-primary)',
+      'font-size': 'var(--font-size-default)',
+      'font-weight': 'var(--typeface-regular-weight)',
+      'font-family': 'var(--typeface-primary)',
+      'letter-spacing': '0px'
+    };
+    props = props.filter(prop => {
+      for (const key in defaultVars) {
+        if (prop.startsWith(key + ':') && prop.includes(defaultVars[key])) {
+          return false;
+        }
+      }
+      return true;
+    });
     // Форматирование: первая строка после { максимально длинная (до 80 символов), остальные — с отступом
     let scssLines = [];
     let line = '';
@@ -346,11 +465,14 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
   const rootEntry = classEntries.find(([, node]) => node === figmaNode);
   let scss = '';
   if (rootEntry) {
-    const rootRule = nodeToScss(figmaNode, rootClass);
+    const rootRule = nodeToScss(figmaNode, rootClass, null);
     scss += `.${rootClass} {${rootRule ? rootRule + '\n' : ''}`;
     classEntries.forEach(([className, node]) => {
       if (node === figmaNode) return;
-      const rule = nodeToScss(node, className);
+      // Определяем непосредственного родителя
+      const parent = parentMap.get(node.id);
+      const parentLayoutMode = parent && parent.layoutMode ? parent.layoutMode : null;
+      const rule = nodeToScss(node, className, parentLayoutMode);
       if (rule) {
         const nested = className.startsWith(rootClass + '_') ? '&' + className.slice(rootClass.length) : `.${className}`;
         const indentedRule = rule.replace(/\n/g, '\n  ');
@@ -383,42 +505,81 @@ program
   .option('-o, --output <dir>', 'Output directory', './output')
   .option('-n, --name <component>', 'Component name to use as root class')
   .option('--json', 'Also save the selected Figma node as a JSON file')
+  .option('-v --variant <variant>', 'Variant node name inside the frame')
   .action((options) => {
-    const { frame, input, output, name, json } = options;
+    const { frame, input, output, name, json, variant } = options;
     if (!fs.existsSync(input)) {
       console.error(`Input file not found: ${input}`);
       process.exit(1);
     }
     const figmaData = JSON.parse(fs.readFileSync(input, 'utf-8'));
-    // Recursively search for the frame/node by name
-    function findNodeByName(node, name) {
-      if (node.name === name) return node;
+    // Рекурсивно ищем все узлы по имени
+    function findAllNodesByName(node, name, acc = []) {
+      if (node.name === name) acc.push(node);
       if (node.children) {
         for (const child of node.children) {
-          const found = findNodeByName(child, name);
-          if (found) return found;
+          findAllNodesByName(child, name, acc);
         }
+      }
+      return acc;
+    }
+    function findVariantNode(frameNode, variantName) {
+      if (!frameNode.children) return null;
+      for (const child of frameNode.children) {
+        if (child.name === variantName) return child;
       }
       return null;
     }
-    const targetNode = findNodeByName(figmaData.document, frame);
-    if (!targetNode) {
+    const foundNodes = findAllNodesByName(figmaData.document, frame);
+    if (foundNodes.length === 0) {
       console.error(`Frame or node named '${frame}' not found in the Figma file.`);
       process.exit(1);
     }
-    const rootClass = name ? name : frame;
-    const { jsx, scss } = convertFigmaToMarkup(targetNode, rootClass);
-    if (!fs.existsSync(output)) {
-      fs.mkdirSync(output, { recursive: true });
+    function proceedWithNode(targetNode) {
+      let nodeForExport = targetNode;
+      if (variant) {
+        const variantNode = findVariantNode(targetNode, variant);
+        if (!variantNode) {
+          console.error(`Variant node named '${variant}' not found inside frame '${frame}'.`);
+          process.exit(1);
+        }
+        nodeForExport = variantNode;
+      }
+      const rootClass = name ? name : (variant ? variant : frame);
+      const { jsx, scss } = convertFigmaToMarkup(nodeForExport, rootClass);
+      if (!fs.existsSync(output)) {
+        fs.mkdirSync(output, { recursive: true });
+      }
+      fs.writeFileSync(path.join(output, `${rootClass}.jsx`), jsx);
+      fs.writeFileSync(path.join(output, `${rootClass}.scss`), scss);
+      if (json) {
+        fs.writeFileSync(path.join(output, `${rootClass}.json`), JSON.stringify(nodeForExport, null, 2));
+      }
+      console.log(`JSX and SCSS for '${rootClass}' exported to ${output}`);
+      if (json) {
+        console.log(`JSON for '${rootClass}' exported to ${output}`);
+      }
     }
-    fs.writeFileSync(path.join(output, `${rootClass}.jsx`), jsx);
-    fs.writeFileSync(path.join(output, `${rootClass}.scss`), scss);
-    if (json) {
-      fs.writeFileSync(path.join(output, `${rootClass}.json`), JSON.stringify(targetNode, null, 2));
-    }
-    console.log(`JSX and SCSS for '${rootClass}' exported to ${output}`);
-    if (json) {
-      console.log(`JSON for '${rootClass}' exported to ${output}`);
+    if (foundNodes.length === 1) {
+      proceedWithNode(foundNodes[0]);
+    } else {
+      // Несколько узлов — выводим список и спрашиваем пользователя
+      console.log(`Found multiple nodes named '${frame}':`);
+      foundNodes.forEach((node, idx) => {
+        console.log(`${idx + 1}: id=${node.id}, type=${node.type}`);
+      });
+      const readline = require('readline');
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      rl.question('Enter the number of the node to use: ', (answer) => {
+        const num = parseInt(answer, 10);
+        if (!num || num < 1 || num > foundNodes.length) {
+          console.error('Invalid selection. Exiting.');
+          rl.close();
+          process.exit(1);
+        }
+        rl.close();
+        proceedWithNode(foundNodes[num - 1]);
+      });
     }
   });
 
