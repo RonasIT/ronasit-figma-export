@@ -490,6 +490,13 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         props.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
       }
     }
+    // Aspect ratio (Figma: targetAspectRatio or preserveRatio)
+    if (node.targetAspectRatio && typeof node.targetAspectRatio.x === 'number' && typeof node.targetAspectRatio.y === 'number' && node.targetAspectRatio.x > 0 && node.targetAspectRatio.y > 0) {
+      props.push(`aspect-ratio: ${formatNum(node.targetAspectRatio.x)} / ${formatNum(node.targetAspectRatio.y)};`);
+    } else if (node.preserveRatio === true && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.width === 'number' && typeof node.absoluteBoundingBox.height === 'number' && node.absoluteBoundingBox.height !== 0) {
+      const ratio = node.absoluteBoundingBox.width / node.absoluteBoundingBox.height;
+      props.push(`aspect-ratio: ${formatNum(ratio)};`);
+    }
     // После формирования props фильтруем свойства с дефолтными значениями
     const defaultVars = {
       'color': 'var(--text-primary)',
