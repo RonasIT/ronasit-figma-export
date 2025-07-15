@@ -104,7 +104,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
       }
       const componentName = toPascalCase(node.name);
       // Convert componentProperties to JSX props
-      let propsStr = `className=\"${nodeClass}\"`;
+      let propsStr = `className={styles.${nodeClass}}`;
       if (node.componentProperties && typeof node.componentProperties === 'object') {
         for (const [key, valueObj] of Object.entries(node.componentProperties)) {
           // Remove # and everything after for prop name
@@ -140,19 +140,19 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
     }
     if (isRoot) {
       if (childrenJsx) {
-        return `${indentStr}<div className=\"${nodeClass}\">\n${childrenJsx}\n${indentStr}</div>`;
+        return `${indentStr}<div className={styles.${nodeClass}}>` + `\n${childrenJsx}\n${indentStr}</div>`;
       } else {
-        return `${indentStr}<div className=\"${nodeClass}\"></div>`;
+        return `${indentStr}<div className={styles.${nodeClass}}></div>`;
       }
     } else if (tag === 'img') {
-      return `${indentStr}<img className=\"${nodeClass}\" alt=\"${sanitize(node.name)}\" />`;
+      return `${indentStr}<img className={styles.${nodeClass}} alt=\"${sanitize(node.name)}\" />`;
     } else if (tag === 'span' && node.characters) {
-      return `${indentStr}<span className=\"${nodeClass}\">${node.characters}</span>`;
+      return `${indentStr}<span className={styles.${nodeClass}}>${node.characters}</span>`;
     } else {
       if (childrenJsx) {
-        return `${indentStr}<${tag} className=\"${nodeClass}\">\n${childrenJsx}\n${indentStr}</${tag}>`;
+        return `${indentStr}<${tag} className={styles.${nodeClass}}>` + `\n${childrenJsx}\n${indentStr}</${tag}>`;
       } else {
-        return `${indentStr}<${tag} className=\"${nodeClass}\"></${tag}>`;
+        return `${indentStr}<${tag} className={styles.${nodeClass}}></${tag}>`;
       }
     }
   }
