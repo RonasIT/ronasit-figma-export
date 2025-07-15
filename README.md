@@ -111,10 +111,6 @@ Export images from the `Assets` frame:
 node figma-export.js images -f Assets -o ./output
 ```
 
-## FAQ
-
-**Q: How do I refresh the cache?**
-- Use the `-u` or `--update` flag with any command. `content` and `all` commands always retrieve fresh data from Figma file.
 
 ## Markup.js: Figma to React/SCSS Converter
 
