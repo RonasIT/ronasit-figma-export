@@ -12,7 +12,7 @@ A CLI utility for exporting data from Figma (colors, typography, icons, images) 
 1. Clone the repository:
    ```bash
    git clone <repo-url>
-   cd figma-export-tool
+   cd ronasit-figma-export
    ```
 2. Install dependencies:
    ```bash
@@ -118,8 +118,8 @@ node figma-export.js images -f Assets -o ./output
 
 ### Features
 - Generates JSX templates and SCSS styles for the selected Figma frame.
-- Supports SCSS variables for colors, sizes, fonts, font-weight, and other properties.
-- For INSTANCE nodes, generates a React component with props.
+- Uses CSS variables for colors and font properties.
+- For component instances, generates a React component and passes props.
 - Supports variant selection inside a component via the `--variant` option.
 
 ### Usage
@@ -152,7 +152,7 @@ If multiple nodes with the same name are found, the utility will prompt you to s
 #### Output Files
 - `ComponentName.jsx` — React JSX for the selected node
 - `ComponentName.scss` — SCSS for the selected node
-- `ComponentName.json` — (optional) JSON of the selected node
+- `ComponentName.json` — (optional) JSON of the selected node, may be used for debugging
 
 ---
 
