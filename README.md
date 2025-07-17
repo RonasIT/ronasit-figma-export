@@ -206,7 +206,7 @@ figma-markup --frame "Frame Name" [--variant "Variant Name"] [--output ./output]
 npx figma-markup --frame "Frame Name" [--variant "Variant Name"] [--output ./output] [--name ComponentName] [--json]
 
 # Development
-node markup.js --frame "Frame Name" [--variant "Variant Name"] [--output ./output] [--name ComponentName] [--json]
+node src/markup.js --frame "Frame Name" [--variant "Variant Name"] [--output ./output] [--name ComponentName] [--json]
 ```
 
 #### Main Options
@@ -271,6 +271,6 @@ For contributing or local development:
 3. Run scripts locally using `node`:
 
    ```bash
-   node figma-export.js <command> [options]
-   node markup.js [options]
+   node src/figma-export.js <command> [options]
+   node src/markup.js [options]
    ```
