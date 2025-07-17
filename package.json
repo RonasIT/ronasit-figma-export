@@ -1,18 +1,50 @@
 {
-  "name": "figma-export-tool",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "@ronas-it/figma-export",
+  "version": "0.1.0",
+  "description": "A CLI utility for exporting data from Ronas IT Figma designs for frontend use",
+  "main": "figma-export.js",
+  "bin": {
+    "figma-export": "./figma-export.js",
+    "figma-markup": "./markup.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
-  "devDependencies": {
+  "keywords": [
+    "figma",
+    "export",
+    "cli",
+    "scss",
+    "react",
+    "jsx",
+    "design-tokens",
+    "css-variables",
+    "frontend",
+    "design-system"
+  ],
+  "author": "Ronas IT",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ronasit/ronasit-figma-export.git"
+  },
+  "homepage": "https://github.com/ronasit/ronasit-figma-export#readme",
+  "bugs": {
+    "url": "https://github.com/ronasit/ronasit-figma-export/issues"
+  },
+  "files": [
+    "figma-export.js",
+    "markup.js",
+    "README.md",
+    ".env.example"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
     "axios": "^1.10.0",
-    "commander": "^14.0.0",
-    "dotenv": "^17.2.0",
-    "fs": "^0.0.1-security"
-  }
+    "commander": "^9.5.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {}
 }
