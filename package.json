@@ -7,9 +7,6 @@
     "figma-export": "./src/figma-export.js",
     "figma-markup": "./src/markup.js"
   },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "keywords": [
     "figma",
     "export",
@@ -44,6 +41,5 @@
     "axios": "^1.10.0",
     "commander": "^9.5.0",
     "dotenv": "^16.4.0"
-  },
-  "devDependencies": {}
+  }
 }
