@@ -1,8 +1,5 @@
 # Ronas IT Figma export tool
 
-[![npm version](https://badge.fury.io/js/%40ronasit%2Ffigma-export.svg)](https://www.npmjs.com/package/@ronas-it/figma-export)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 A CLI utility for exporting data from Figma (colors, typography, icons, images) to JSON and SCSS for frontend use.
 
 ## Features
@@ -15,15 +12,7 @@ A CLI utility for exporting data from Figma (colors, typography, icons, images) 
 
 ## Installation
 
-### Global Installation (Recommended)
-
-Install globally to use as a CLI tool from anywhere:
-
-```bash
-npm install -g @ronas-it/figma-export
-```
-
-### Local Installation as Dev Dependency
+### Local Installation (Recommended)
 
 Install in your project as a development dependency:
 
@@ -31,64 +20,35 @@ Install in your project as a development dependency:
 npm install --save-dev @ronas-it/figma-export
 ```
 
-### Development Installation
+### Global Installation
 
-For contributing or local development:
+Install globally to use as a CLI tool from anywhere:
 
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/ronasit/ronasit-figma-export.git
-   cd ronasit-figma-export
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   npm install
-   ```
+```bash
+npm install -g @ronas-it/figma-export
+```
 
 ## Configuration
 
-### For Global Installation
-
-Create a `.env` file in your project root or current working directory:
+1. Get your token in Figma account settings (Account Settings → Personal Access Tokens).
+1. The file URL is the link to your Figma file.
+1. Create a `.env` file in your project root or current working directory with the following variables:
 
 ```env
 FIGMA_API_TOKEN=your_figma_token
 FIGMA_FILE_URL=https://www.figma.com/file/your-file-id/...
 ```
 
-### For Local Installation
+**Recommended:** Add to `.gitignore`:
 
-1. Copy the example environment file:
-
-   ```bash
-   cp node_modules/@ronas-it/figma-export/.env.example .env
-   ```
-
-2. Edit the `.env` file with your credentials:
-
-   ```env
-   FIGMA_API_TOKEN=your_figma_token
-   FIGMA_FILE_URL=https://www.figma.com/file/your-file-id/...
-   ```
-
-**Getting your credentials:**
-
-- Get your token in Figma account settings (Account Settings → Personal Access Tokens).
-- The file URL is the link to your Figma file.
+```gitignore
+output/
+.env
+```
 
 ## Usage
 
 ### Main Commands
-
-**Global Installation:**
-
-```bash
-figma-export <command> [options]
-figma-markup [options]
-```
 
 **Local Installation (npm scripts):**
 
@@ -97,11 +57,11 @@ npx figma-export <command> [options]
 npx figma-markup [options]
 ```
 
-**Development (from source):**
+**Global Installation:**
 
 ```bash
-node figma-export.js <command> [options]
-node markup.js [options]
+figma-export <command> [options]
+figma-markup [options]
 ```
 
 ### Available Commands
@@ -290,3 +250,27 @@ If multiple nodes with the same name are found, the utility will prompt you to s
 ---
 
 If you have questions or find bugs, please open an issue or contact the author.
+
+## Development
+
+For contributing or local development:
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/ronasit/ronasit-figma-export.git
+   cd ronasit-figma-export
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+3. Run scripts locally using `node`:
+
+   ```bash
+   node figma-export.js <command> [options]
+   node markup.js [options]
+   ```
