@@ -107,3 +107,6 @@ Thumbs.db
 
 # Local development files
 *.local
+
+# Git
+.git/

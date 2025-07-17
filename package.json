@@ -37,9 +37,24 @@
   "engines": {
     "node": ">=16.0.0"
   },
+  "scripts": {
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,json,md}\"",
+    "prepare": "husky"
+  },
   "dependencies": {
     "axios": "^1.10.0",
     "commander": "^9.5.0",
     "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.2",
+    "prettier": "^3.6.2"
+  },
+  "lint-staged": {
+    "src/**/*.{js,jsx,ts,tsx,json,md}": [
+      "prettier --write"
+    ]
   }
 }
