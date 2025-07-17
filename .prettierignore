@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Output directories
+output/
+dist/
+build/
+
+# Package files
+package-lock.json
+*.tgz
+
+# Environment files
+.env*
+
+# Git
+.git/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Generated files
+*.min.js
+*.min.css

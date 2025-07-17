@@ -21,7 +21,9 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
 
   // Helper to sanitize class names
   function sanitize(name) {
-    return String(name).toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
+    return String(name)
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '_');
   }
 
   // Helper to convert a string to PascalCase for component names
@@ -30,13 +32,13 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
       .replace(/[^a-zA-Z0-9]+/g, ' ') // Replace non-alphanumeric with space
       .split(' ')
       .filter(Boolean)
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join('');
   }
 
   // Helper to format numbers: integers as is, floats to 3 decimal places
   function formatNum(val) {
-    return (typeof val === 'number' && !Number.isInteger(val)) ? val.toFixed(3) : val;
+    return typeof val === 'number' && !Number.isInteger(val) ? val.toFixed(3) : val;
   }
 
   // Helper to convert Figma color/opacity to CSS string
@@ -94,7 +96,9 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
   function nodeToJsx(node, indent = 0, isRoot = false, rootClassName = null) {
     const tag = getTag(node);
     const nodeClass = isRoot
-      ? (rootClassName ? rootClassName : sanitize(node.name))
+      ? rootClassName
+        ? rootClassName
+        : sanitize(node.name)
       : `${rootClass}_${sanitize(node.name)}`;
     const indentStr = '  '.repeat(indent);
     // For INSTANCE nodes, do not process children
@@ -133,7 +137,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
     }
     let childrenJsx = '';
     if (node.children && node.children.length > 0) {
-      childrenJsx = node.children.map(child => nodeToJsx(child, indent + 1, false, rootClassName)).join('\n');
+      childrenJsx = node.children.map((child) => nodeToJsx(child, indent + 1, false, rootClassName)).join('\n');
     }
     if (!classMap.has(nodeClass)) {
       classMap.set(nodeClass, node);
@@ -181,7 +185,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         const constraints = node.constraints || {};
         // Horizontal
         if (constraints.horizontal === 'RIGHT') {
-          const right = (parentBox.x + parentBox.width) - (box.x + box.width);
+          const right = parentBox.x + parentBox.width - (box.x + box.width);
           props.push(`right: ${formatNum(right)}px;`);
         } else if (constraints.horizontal === 'CENTER') {
           // Centering: left = (parentWidth - width)/2
@@ -191,13 +195,14 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
           // Not implemented, fallback to left
           const left = box.x - parentBox.x;
           props.push(`left: ${formatNum(left)}px;`);
-        } else { // LEFT or default
+        } else {
+          // LEFT or default
           const left = box.x - parentBox.x;
           props.push(`left: ${formatNum(left)}px;`);
         }
         // Vertical
         if (constraints.vertical === 'BOTTOM') {
-          const bottom = (parentBox.y + parentBox.height) - (box.y + box.height);
+          const bottom = parentBox.y + parentBox.height - (box.y + box.height);
           props.push(`bottom: ${formatNum(bottom)}px;`);
         } else if (constraints.vertical === 'CENTER') {
           const top = (parentBox.height - box.height) / 2;
@@ -206,7 +211,8 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
           // Not implemented, fallback to top
           const top = box.y - parentBox.y;
           props.push(`top: ${formatNum(top)}px;`);
-        } else { // TOP or default
+        } else {
+          // TOP or default
           const top = box.y - parentBox.y;
           props.push(`top: ${formatNum(top)}px;`);
         }
@@ -311,7 +317,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
     if (bgVisible && node.type !== 'TEXT') {
       // Фоновое изображение
       if (node.fills && Array.isArray(node.fills)) {
-        const imageFill = node.fills.find(f => f.type === 'IMAGE');
+        const imageFill = node.fills.find((f) => f.type === 'IMAGE');
         if (imageFill) {
           props.push('background: url(/img/image.png);');
           if (imageFill.scaleMode === 'FILL') {
@@ -326,7 +332,12 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
           }
         }
       }
-      if (node.boundVariables && node.boundVariables.fills && Array.isArray(node.boundVariables.fills) && node.boundVariables.fills[0]?.id) {
+      if (
+        node.boundVariables &&
+        node.boundVariables.fills &&
+        Array.isArray(node.boundVariables.fills) &&
+        node.boundVariables.fills[0]?.id
+      ) {
         bgVar = getScssVarById(node.boundVariables.fills[0].id);
       }
       if (bgVar) {
@@ -347,7 +358,12 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
     }
     // Border
     let borderVar = null;
-    if (node.boundVariables && node.boundVariables.strokes && Array.isArray(node.boundVariables.strokes) && node.boundVariables.strokes[0]?.id) {
+    if (
+      node.boundVariables &&
+      node.boundVariables.strokes &&
+      Array.isArray(node.boundVariables.strokes) &&
+      node.boundVariables.strokes[0]?.id
+    ) {
       borderVar = getScssVarById(node.boundVariables.strokes[0].id);
     }
     if (borderVar) {
@@ -359,13 +375,13 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
     }
     // Box-shadow
     if (Array.isArray(node.effects)) {
-      const shadows = node.effects.filter(e => e.type === 'DROP_SHADOW' && e.visible !== false);
+      const shadows = node.effects.filter((e) => e.type === 'DROP_SHADOW' && e.visible !== false);
       // Получаем variableID для box-shadow, если есть
       let shadowVarId = null;
       if (node.boundVariables && node.boundVariables.effects) {
         let effectVars = node.boundVariables.effects;
         if (Array.isArray(effectVars)) {
-          const effectVar = effectVars.find(v => v.type === 'VARIABLE_ALIAS' && v.id);
+          const effectVar = effectVars.find((v) => v.type === 'VARIABLE_ALIAS' && v.id);
           if (effectVar && effectVar.id) {
             shadowVarId = effectVar.id;
           }
@@ -375,7 +391,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
           }
         }
       }
-      const validShadows = shadows.filter(e => {
+      const validShadows = shadows.filter((e) => {
         let shadowColor = null;
         if (shadowVarId) {
           shadowColor = getScssVarById(shadowVarId);
@@ -386,7 +402,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         return !!shadowColor;
       });
       if (validShadows.length > 0) {
-        const shadowStrs = validShadows.map(e => {
+        const shadowStrs = validShadows.map((e) => {
           let shadowColor = null;
           if (shadowVarId) {
             shadowColor = getScssVarById(shadowVarId);
@@ -415,8 +431,15 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
       if (node.layoutMode === 'VERTICAL') {
         props.push('flex-direction: column;');
       }
-      if (typeof node.paddingLeft === 'number' && typeof node.paddingRight === 'number' && typeof node.paddingTop === 'number' && typeof node.paddingBottom === 'number') {
-        props.push(`padding: ${formatNum(node.paddingTop)}px ${formatNum(node.paddingRight)}px ${formatNum(node.paddingBottom)}px ${formatNum(node.paddingLeft)}px;`);
+      if (
+        typeof node.paddingLeft === 'number' &&
+        typeof node.paddingRight === 'number' &&
+        typeof node.paddingTop === 'number' &&
+        typeof node.paddingBottom === 'number'
+      ) {
+        props.push(
+          `padding: ${formatNum(node.paddingTop)}px ${formatNum(node.paddingRight)}px ${formatNum(node.paddingBottom)}px ${formatNum(node.paddingLeft)}px;`,
+        );
       }
       if (typeof node.itemSpacing === 'number') {
         props.push(`gap: ${formatNum(node.itemSpacing)}px;`);
@@ -429,10 +452,18 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
       if (typeof node.primaryAxisAlignItems === 'string') {
         let justify = 'flex-start';
         switch (node.primaryAxisAlignItems) {
-          case 'MIN': justify = 'flex-start'; break;
-          case 'CENTER': justify = 'center'; break;
-          case 'MAX': justify = 'flex-end'; break;
-          case 'SPACE_BETWEEN': justify = 'space-between'; break;
+          case 'MIN':
+            justify = 'flex-start';
+            break;
+          case 'CENTER':
+            justify = 'center';
+            break;
+          case 'MAX':
+            justify = 'flex-end';
+            break;
+          case 'SPACE_BETWEEN':
+            justify = 'space-between';
+            break;
         }
         props.push(`justify-content: ${justify};`);
       }
@@ -440,11 +471,21 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
       if (typeof node.counterAxisAlignItems === 'string') {
         let align = 'flex-start';
         switch (node.counterAxisAlignItems) {
-          case 'MIN': align = 'flex-start'; break;
-          case 'CENTER': align = 'center'; break;
-          case 'MAX': align = 'flex-end'; break;
-          case 'BASELINE': align = 'baseline'; break;
-          case 'SPACE_BETWEEN': align = 'space-between'; break;
+          case 'MIN':
+            align = 'flex-start';
+            break;
+          case 'CENTER':
+            align = 'center';
+            break;
+          case 'MAX':
+            align = 'flex-end';
+            break;
+          case 'BASELINE':
+            align = 'baseline';
+            break;
+          case 'SPACE_BETWEEN':
+            align = 'space-between';
+            break;
         }
         props.push(`align-items: ${align};`);
       }
@@ -459,23 +500,39 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
     // width/height/grow/shrink в зависимости от layoutSizing и направления layoutMode родителя
     if (parentLayoutMode === 'HORIZONTAL' || parentLayoutMode === 'VERTICAL') {
       if (parentLayoutMode === 'HORIZONTAL') {
-        if (node.layoutSizingHorizontal === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.width === 'number') {
+        if (
+          node.layoutSizingHorizontal === 'FIXED' &&
+          node.absoluteBoundingBox &&
+          typeof node.absoluteBoundingBox.width === 'number'
+        ) {
           props.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
         } else if (node.layoutSizingHorizontal === 'FILL') {
           props.push('flex-grow: 1; flex-shrink: 1;');
         }
-        if (node.layoutSizingVertical === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.height === 'number') {
+        if (
+          node.layoutSizingVertical === 'FIXED' &&
+          node.absoluteBoundingBox &&
+          typeof node.absoluteBoundingBox.height === 'number'
+        ) {
           props.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
         } else if (node.layoutSizingVertical === 'FILL') {
           props.push('align-self: stretch;');
         }
       } else if (parentLayoutMode === 'VERTICAL') {
-        if (node.layoutSizingVertical === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.height === 'number') {
+        if (
+          node.layoutSizingVertical === 'FIXED' &&
+          node.absoluteBoundingBox &&
+          typeof node.absoluteBoundingBox.height === 'number'
+        ) {
           props.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
         } else if (node.layoutSizingVertical === 'FILL') {
           props.push('flex-grow: 1; flex-shrink: 1;');
         }
-        if (node.layoutSizingHorizontal === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.width === 'number') {
+        if (
+          node.layoutSizingHorizontal === 'FIXED' &&
+          node.absoluteBoundingBox &&
+          typeof node.absoluteBoundingBox.width === 'number'
+        ) {
           props.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
         } else if (node.layoutSizingHorizontal === 'FILL') {
           props.push('align-self: stretch;');
@@ -483,29 +540,49 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
       }
     } else {
       // Если нет layoutMode у родителя — только фиксированные размеры
-      if (node.layoutSizingHorizontal === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.width === 'number') {
+      if (
+        node.layoutSizingHorizontal === 'FIXED' &&
+        node.absoluteBoundingBox &&
+        typeof node.absoluteBoundingBox.width === 'number'
+      ) {
         props.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
       }
-      if (node.layoutSizingVertical === 'FIXED' && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.height === 'number') {
+      if (
+        node.layoutSizingVertical === 'FIXED' &&
+        node.absoluteBoundingBox &&
+        typeof node.absoluteBoundingBox.height === 'number'
+      ) {
         props.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
       }
     }
     // Aspect ratio (Figma: targetAspectRatio or preserveRatio)
-    if (node.targetAspectRatio && typeof node.targetAspectRatio.x === 'number' && typeof node.targetAspectRatio.y === 'number' && node.targetAspectRatio.x > 0 && node.targetAspectRatio.y > 0) {
+    if (
+      node.targetAspectRatio &&
+      typeof node.targetAspectRatio.x === 'number' &&
+      typeof node.targetAspectRatio.y === 'number' &&
+      node.targetAspectRatio.x > 0 &&
+      node.targetAspectRatio.y > 0
+    ) {
       props.push(`aspect-ratio: ${formatNum(node.targetAspectRatio.x)} / ${formatNum(node.targetAspectRatio.y)};`);
-    } else if (node.preserveRatio === true && node.absoluteBoundingBox && typeof node.absoluteBoundingBox.width === 'number' && typeof node.absoluteBoundingBox.height === 'number' && node.absoluteBoundingBox.height !== 0) {
+    } else if (
+      node.preserveRatio === true &&
+      node.absoluteBoundingBox &&
+      typeof node.absoluteBoundingBox.width === 'number' &&
+      typeof node.absoluteBoundingBox.height === 'number' &&
+      node.absoluteBoundingBox.height !== 0
+    ) {
       const ratio = node.absoluteBoundingBox.width / node.absoluteBoundingBox.height;
       props.push(`aspect-ratio: ${formatNum(ratio)};`);
     }
     // После формирования props фильтруем свойства с дефолтными значениями
     const defaultVars = {
-      'color': 'var(--text-primary)',
+      color: 'var(--text-primary)',
       'font-size': 'var(--font-size-default)',
       'font-weight': 'var(--typeface-regular-weight)',
       'font-family': 'var(--typeface-primary)',
-      'letter-spacing': '0px'
+      'letter-spacing': '0px',
     };
-    props = props.filter(prop => {
+    props = props.filter((prop) => {
       for (const key in defaultVars) {
         if (prop.startsWith(key + ':') && prop.includes(defaultVars[key])) {
           return false;
@@ -553,7 +630,10 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
     const absChildMap = new Map();
     for (const [, node] of classEntries) {
       if (node.children && node.children.length > 0) {
-        absChildMap.set(node.id, node.children.some(child => child.layoutPositioning === 'ABSOLUTE'));
+        absChildMap.set(
+          node.id,
+          node.children.some((child) => child.layoutPositioning === 'ABSOLUTE'),
+        );
       }
     }
     const rootRule = nodeToScss(figmaNode, rootClass, null, null);
@@ -574,7 +654,9 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
         ruleWithRel = 'position: relative; ' + rule;
       }
       if (ruleWithRel) {
-        const nested = className.startsWith(rootClass + '_') ? '&' + className.slice(rootClass.length) : `.${className}`;
+        const nested = className.startsWith(rootClass + '_')
+          ? '&' + className.slice(rootClass.length)
+          : `.${className}`;
         const indentedRule = ruleWithRel.replace(/\n/g, '\n  ');
         if (!indentedRule.includes('\n')) {
           scss += `  ${nested} {${indentedRule}}\n`;
@@ -588,16 +670,13 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
 
   return {
     jsx,
-    scss: scss
+    scss: scss,
   };
 }
 
 const program = new Command();
 
-program
-  .name('markup')
-  .description('Convert a part of a Figma file structure to HTML and CSS')
-  .version('1.0.0');
+program.name('markup').description('Convert a part of a Figma file structure to HTML and CSS').version('1.0.0');
 
 program
   .requiredOption('-f, --frame <name>', 'Frame or node name in the Figma file structure')
@@ -645,7 +724,7 @@ program
         }
         nodeForExport = variantNode;
       }
-      const rootClass = name ? name : (variant ? variant : frame);
+      const rootClass = name ? name : variant ? variant : frame;
       const { jsx, scss } = convertFigmaToMarkup(nodeForExport, rootClass);
       if (!fs.existsSync(output)) {
         fs.mkdirSync(output, { recursive: true });
@@ -669,7 +748,10 @@ program
         console.log(`${idx + 1}: id=${node.id}, type=${node.type}`);
       });
       const readline = require('readline');
-      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
       rl.question('Enter the number of the node to use: ', (answer) => {
         const num = parseInt(answer, 10);
         if (!num || num < 1 || num > foundNodes.length) {
@@ -687,4 +769,4 @@ program.parse(process.argv);
 
 module.exports = {
   convertFigmaToMarkup,
-}; 
+};

@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 require('dotenv').config();
 const axios = require('axios');
 const fs = require('fs');
@@ -19,7 +21,7 @@ const extractFileId = (fileUrl) => {
   try {
     const parsedUrl = new url.URL(fileUrl);
     const pathSegments = parsedUrl.pathname.split('/');
-    return pathSegments[2];  // Assuming the format of the path is /file/{fileId}/
+    return pathSegments[2]; // Assuming the format of the path is /file/{fileId}/
   } catch (error) {
     throw new Error('Invalid Figma file URL');
   }
@@ -49,7 +51,7 @@ async function fetchFigmaFile({ forceUpdate = false, cachePath = './output/figma
     const response = await axios.get(`${FIGMA_API_URL}/v1/files/${FIGMA_FILE_ID}`, {
       headers: {
         'X-Figma-Token': FIGMA_API_TOKEN,
-      }
+      },
     });
     fileDataCache = response.data;
     // Save to cache file
@@ -74,11 +76,10 @@ function sanitize(name, sep) {
     .replace(new RegExp('^' + sep + '|' + sep + '$', 'g'), ''); // Удаление sep в начале и конце
 }
 
-program.name('figma-export-tool')
-  .description('A CLI tool to export Figma file content and variables')
-  .version('1.0.0');
+program.name('figma-export-tool').description('A CLI tool to export Figma file content and variables').version('1.0.0');
 
-program.command('content')
+program
+  .command('content')
   .description('Export the Figma file content to a JSON file')
   .option('-o, --output <type>', 'Output directory', './output')
   .option('-n, --name <type>', 'Name of output JSON file', 'figmaFileContent.json')
@@ -92,7 +93,10 @@ async function exportContent({ output = './output', name = 'figmaFileContent.jso
     fs.mkdirSync(output, { recursive: true });
   }
   try {
-    const fileData = await fetchFigmaFile({ forceUpdate: true, cachePath: `${output}/${name}` });
+    const fileData = await fetchFigmaFile({
+      forceUpdate: true,
+      cachePath: `${output}/${name}`,
+    });
     const jsonFilePath = `${output}/${name}`;
     fs.writeFileSync(jsonFilePath, JSON.stringify(fileData, null, 2));
     console.log(`Figma file content saved to: ${jsonFilePath}`);
@@ -102,13 +106,18 @@ async function exportContent({ output = './output', name = 'figmaFileContent.jso
   }
 }
 
-program.command('variables')
+program
+  .command('variables')
   .description('Extract variables from the Figma file and save them to a JSON file')
   .option('-o, --output <type>', 'Output directory', './output')
   .option('-n, --name <type>', 'Name of output JSON file', 'figmaVariables.json')
   .option('-u, --update', 'Force update from Figma API, ignore local cache')
   .action(async (cmd) => {
-    await exportVariables({ output: cmd.output, name: cmd.name, forceUpdate: !!cmd.update });
+    await exportVariables({
+      output: cmd.output,
+      name: cmd.name,
+      forceUpdate: !!cmd.update,
+    });
   });
 
 async function exportVariables({ output = './output', name = 'figmaVariables.json', forceUpdate = false } = {}) {
@@ -152,7 +161,9 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
               typekitVars[variableData['variable name']] = variableData.values;
             }
           }
-          console.log(`Extracted variable - Name: ${variableData['variable name']}, Values: ${JSON.stringify(variableData.values)}, Id: ${variableData.id}`);
+          console.log(
+            `Extracted variable - Name: ${variableData['variable name']}, Values: ${JSON.stringify(variableData.values)}, Id: ${variableData.id}`,
+          );
         }
       }
 
@@ -192,7 +203,14 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
         if (nodeType === 'Palette row' && node.name === 'value') {
           const color = resolveHexColor(node.fills);
           // Ищем id
-          if (!id && node.boundVariables && node.boundVariables.fills && Array.isArray(node.boundVariables.fills) && node.boundVariables.fills[0] && node.boundVariables.fills[0].id) {
+          if (
+            !id &&
+            node.boundVariables &&
+            node.boundVariables.fills &&
+            Array.isArray(node.boundVariables.fills) &&
+            node.boundVariables.fills[0] &&
+            node.boundVariables.fills[0].id
+          ) {
             id = node.boundVariables.fills[0].id;
           }
           if (color) {
@@ -218,7 +236,7 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
         }
       }
 
-      for (const child of (node.children || [])) {
+      for (const child of node.children || []) {
         const contextName = sanitize(child.name, '-'); // Используем имя родителя
         collectValues(child, contextName);
       }
@@ -284,7 +302,12 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
         // Для каждого режима, кроме desktop, создаём SCSS-переменную
         if (typeof value === 'object') {
           for (const platform in value) {
-            if (platform !== 'desktop' && value[platform] !== '-' && value[platform] !== '' && value[platform] !== undefined) {
+            if (
+              platform !== 'desktop' &&
+              value[platform] !== '-' &&
+              value[platform] !== '' &&
+              value[platform] !== undefined
+            ) {
               scssBreakpoints.push(`$${platform}: ${value[platform]};`);
             }
           }
@@ -332,19 +355,30 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
     console.error('Error:', error.message);
     process.exit(1);
   }
-};
+}
 
-program.command('icons')
+program
+  .command('icons')
   .description('Extract icons from Figma and generate icons.scss')
   .option('-f, --frame <type>', 'Frame name', 'icon_sprite')
   .option('-o, --output <type>', 'Output directory', './output')
   .option('-n, --name <type>', 'Name of output SCSS file', 'icons.scss')
   .option('-u, --update', 'Force update from Figma API, ignore local cache')
   .action(async (cmd) => {
-    await exportIcons({ output: cmd.output, name: cmd.name, frame: cmd.frame, forceUpdate: !!cmd.update });
+    await exportIcons({
+      output: cmd.output,
+      name: cmd.name,
+      frame: cmd.frame,
+      forceUpdate: !!cmd.update,
+    });
   });
 
-async function exportIcons({ frame = 'icon_sprite', output = './output', name = 'icons.scss', forceUpdate = false } = {}) {
+async function exportIcons({
+  frame = 'icon_sprite',
+  output = './output',
+  name = 'icons.scss',
+  forceUpdate = false,
+} = {}) {
   console.log('Exporting icons sprite...');
   if (!fs.existsSync(`${output}/scss`)) {
     fs.mkdirSync(`${output}/scss`, { recursive: true });
@@ -374,12 +408,18 @@ async function exportIcons({ frame = 'icon_sprite', output = './output', name = 
     for (const icon of iconsSprite.children) {
       const name = sanitize(icon.name, '_'); // Для иконок используем _
       // Получаем относительные координаты и округляем
-      let x = (icon.absoluteBoundingBox && icon.absoluteBoundingBox.x !== undefined) ? Math.round(icon.absoluteBoundingBox.x - spriteBox.x) : 0;
-      let y = (icon.absoluteBoundingBox && icon.absoluteBoundingBox.y !== undefined) ? Math.round(icon.absoluteBoundingBox.y - spriteBox.y) : 0;
+      let x =
+        icon.absoluteBoundingBox && icon.absoluteBoundingBox.x !== undefined
+          ? Math.round(icon.absoluteBoundingBox.x - spriteBox.x)
+          : 0;
+      let y =
+        icon.absoluteBoundingBox && icon.absoluteBoundingBox.y !== undefined
+          ? Math.round(icon.absoluteBoundingBox.y - spriteBox.y)
+          : 0;
       let sizeRule = '';
       // Проверяем размер
-      let w = icon.width !== undefined ? icon.width : (icon.absoluteBoundingBox ? icon.absoluteBoundingBox.width : 24);
-      let h = icon.height !== undefined ? icon.height : (icon.absoluteBoundingBox ? icon.absoluteBoundingBox.height : 24);
+      let w = icon.width !== undefined ? icon.width : icon.absoluteBoundingBox ? icon.absoluteBoundingBox.width : 24;
+      let h = icon.height !== undefined ? icon.height : icon.absoluteBoundingBox ? icon.absoluteBoundingBox.height : 24;
       if (w !== 24 || h !== 24) {
         sizeRule = ` width: ${w}px; height: ${h}px;`;
       }
@@ -393,16 +433,22 @@ async function exportIcons({ frame = 'icon_sprite', output = './output', name = 
     console.error('Error:', error.message);
     process.exit(1);
   }
-};
+}
 
-program.command('images')
+program
+  .command('images')
   .description('Export images for elements with exportSettings from Figma')
   .option('-o, --output <type>', 'Output directory', './output')
   .option('-f, --frame <type>', 'Frame name (optional)')
   .option('--list', 'List all exportable images without downloading')
   .option('-u, --update', 'Force update from Figma API, ignore local cache')
   .action(async (cmd) => {
-    await exportImages({ output: cmd.output, frame: cmd.frame, list: cmd.list, forceUpdate: !!cmd.update });
+    await exportImages({
+      output: cmd.output,
+      frame: cmd.frame,
+      list: cmd.list,
+      forceUpdate: !!cmd.update,
+    });
   });
 
 async function exportImages({ output = './output', frame, list = false, forceUpdate = false } = {}) {
@@ -461,9 +507,17 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
           if (setting.constraint && typeof setting.constraint.value === 'number') {
             if (setting.constraint.type === 'SCALE') {
               scale = setting.constraint.value;
-            } else if (setting.constraint.type === 'WIDTH' && node.absoluteBoundingBox && node.absoluteBoundingBox.width) {
+            } else if (
+              setting.constraint.type === 'WIDTH' &&
+              node.absoluteBoundingBox &&
+              node.absoluteBoundingBox.width
+            ) {
               scale = setting.constraint.value / node.absoluteBoundingBox.width;
-            } else if (setting.constraint.type === 'HEIGHT' && node.absoluteBoundingBox && node.absoluteBoundingBox.height) {
+            } else if (
+              setting.constraint.type === 'HEIGHT' &&
+              node.absoluteBoundingBox &&
+              node.absoluteBoundingBox.height
+            ) {
               scale = setting.constraint.value / node.absoluteBoundingBox.height;
             } else {
               scale = 1;
@@ -476,14 +530,16 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
             id: node.id,
             format,
             suffix,
-            scale
+            scale,
           });
         }
       }
       console.log(`Total exportable images: ${imagesList.length}`);
       if (imagesList.length < 100) {
         for (const img of imagesList) {
-          console.log(`Name: ${img.name}, ID: ${img.id}, Format: ${img.format}, Suffix: ${img.suffix}, Scale: ${img.scale}`);
+          console.log(
+            `Name: ${img.name}, ID: ${img.id}, Format: ${img.format}, Suffix: ${img.suffix}, Scale: ${img.scale}`,
+          );
         }
       } else {
         console.log('Too many images to list individually.');
@@ -500,9 +556,17 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
         if (setting.constraint && typeof setting.constraint.value === 'number') {
           if (setting.constraint.type === 'SCALE') {
             scale = setting.constraint.value;
-          } else if (setting.constraint.type === 'WIDTH' && node.absoluteBoundingBox && node.absoluteBoundingBox.width) {
+          } else if (
+            setting.constraint.type === 'WIDTH' &&
+            node.absoluteBoundingBox &&
+            node.absoluteBoundingBox.width
+          ) {
             scale = setting.constraint.value / node.absoluteBoundingBox.width;
-          } else if (setting.constraint.type === 'HEIGHT' && node.absoluteBoundingBox && node.absoluteBoundingBox.height) {
+          } else if (
+            setting.constraint.type === 'HEIGHT' &&
+            node.absoluteBoundingBox &&
+            node.absoluteBoundingBox.height
+          ) {
             scale = setting.constraint.value / node.absoluteBoundingBox.height;
           } else {
             scale = 1;
@@ -528,7 +592,7 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
               ids: nodeId,
               format,
               scale,
-            }
+            },
           });
           const imageUrl = imageUrlResp.data.images[nodeId];
           if (!imageUrl) {
@@ -536,15 +600,20 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
             continue;
           }
           // Скачиваем изображение
-          const imageResp = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+          const imageResp = await axios.get(imageUrl, {
+            responseType: 'arraybuffer',
+          });
           // Формируем имя файла
           const baseName = sanitize(node.name, '_');
           const fileName = `${baseName}${suffix ? suffix : ''}.${format}`;
           const filePath = `${output}/img/${fileName}`;
-          fs.writeFileSync(filePath, imageResp.data);
+          fs.writeFileSync(filePath, Buffer.from(imageResp.data));
           console.log(`Exported: ${filePath}`);
         } catch (err) {
-          console.error(`Error exporting node '${node.name}' (${nodeId}):`, err.response ? err.response.data : err.message);
+          console.error(
+            `Error exporting node '${node.name}' (${nodeId}):`,
+            err.response ? err.response.data : err.message,
+          );
         }
       }
     }
@@ -552,9 +621,10 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
     console.error('Error:', error.message);
     process.exit(1);
   }
-};
+}
 
-program.command('all')
+program
+  .command('all')
   .description('Run all export commands: content, variables, icons, images')
   .action(async () => {
     try {
