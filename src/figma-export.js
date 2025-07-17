@@ -543,7 +543,7 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
           const baseName = sanitize(node.name, '_');
           const fileName = `${baseName}${suffix ? suffix : ''}.${format}`;
           const filePath = `${output}/img/${fileName}`;
-          fs.writeFileSync(filePath, imageResp.data);
+          fs.writeFileSync(filePath, Buffer.from(imageResp.data));
           console.log(`Exported: ${filePath}`);
         } catch (err) {
           console.error(`Error exporting node '${node.name}' (${nodeId}):`, err.response ? err.response.data : err.message);
