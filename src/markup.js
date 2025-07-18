@@ -706,7 +706,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
         if (!indentedRule.includes('\n')) {
           scss += `  ${nested} {${indentedRule}}\n`;
         } else {
-          scss += `  ${nested} {${indentedRule}\n    }\n`;
+          scss += `  ${nested} {${indentedRule}\n  }\n`;
         }
       }
     });
