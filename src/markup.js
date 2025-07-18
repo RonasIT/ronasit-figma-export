@@ -10,7 +10,7 @@ const path = require('path');
  * @param {Object} figmaNode - Node or part of the Figma structure
  * @returns {{ html: string, css: string }}
  */
-function convertFigmaToMarkup(figmaNode, rootClassOverride) {
+function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
   // Load variableIds.json if present
   let variableIdMap = {};
   try {
@@ -79,6 +79,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
   const classMap = new Map();
 
   // Собираем карту id -> parentNode
+  // Build parent map using the full document
   const parentMap = new Map();
   function buildParentMap(node, parent = null) {
     if (node.id) {
@@ -90,7 +91,41 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
       }
     }
   }
-  buildParentMap(figmaNode, null);
+  buildParentMap(figmaDocument, null);
+
+  // Build id -> node map for fast lookup using the full document
+  const idMap = new Map();
+  function buildIdMap(node) {
+    if (node.id) {
+      idMap.set(node.id, node);
+    }
+    if (node.children && node.children.length > 0) {
+      for (const child of node.children) {
+        buildIdMap(child);
+      }
+    }
+  }
+  buildIdMap(figmaDocument);
+
+  // Helper to find master component for an INSTANCE node
+  function findMasterComponent(instanceNode) {
+    if (!instanceNode.componentId) return null;
+    return idMap.get(instanceNode.componentId) || null;
+  }
+
+  // Helper to check if a component is an icon (by parent names)
+  function isIconComponent(componentNode) {
+    let current = componentNode;
+    while (current) {
+      const name = (current.name || '').toLowerCase();
+      if (name.includes('icons') || name.includes('icon_sprite')) {
+        return true;
+      }
+      const parent = parentMap.get(current.id);
+      current = parent || null;
+    }
+    return false;
+  }
 
   // Recursively generate pretty JSX
   function nodeToJsx(node, indent = 0, isRoot = false, rootClassName = null) {
@@ -106,6 +141,16 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride) {
       if (!classMap.has(nodeClass)) {
         classMap.set(nodeClass, node);
       }
+
+      const masterComponent = findMasterComponent(node);
+      if (masterComponent) {
+        console.log('Found master component for ' + node.name);
+      }
+      if (masterComponent && isIconComponent(masterComponent)) {
+        // Render as <Icon name="nodeName" />
+        return `${indentStr}<Icon name=\"${sanitize(node.name)}\" />`;
+      }
+
       const componentName = toPascalCase(node.name);
       // Convert componentProperties to JSX props
       let propsStr = `className={styles.${nodeClass}}`;
@@ -725,7 +770,7 @@ program
         nodeForExport = variantNode;
       }
       const rootClass = name ? name : variant ? variant : frame;
-      const { jsx, scss } = convertFigmaToMarkup(nodeForExport, rootClass);
+      const { jsx, scss } = convertFigmaToMarkup(nodeForExport, rootClass, figmaData.document);
       if (!fs.existsSync(output)) {
         fs.mkdirSync(output, { recursive: true });
       }
