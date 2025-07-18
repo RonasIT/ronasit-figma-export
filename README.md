@@ -113,10 +113,10 @@ figma-markup [options]
   # Global
   figma-export icons
   # With options
-  figma-export icons -f icon_sprite -o ./output -n icons.scss
+  figma-export icons -f "Sprite Frame Name" -o ./output -n icons.scss
 
   # Local/npx
-  npx figma-export icons -f icon_sprite -o ./output -n icons.scss
+  npx figma-export icons -f "Sprite Frame Name" -o ./output -n icons.scss
   ```
 
   Saves SCSS for icons from the sprite. Works with `icons_sprite` frame by default, but you can pass any frame name to generate icons SCSS from.
@@ -127,10 +127,10 @@ figma-markup [options]
   # Global
   figma-export images
   # With options
-  figma-export images -o ./output -f FrameName --list
+  figma-export images -o ./output -f "Frame Name" --list
 
   # Local/npx
-  npx figma-export images -o ./output -f FrameName --list
+  npx figma-export images -o ./output -f "Frame Name" --list
   ```
 
   Saves images from all exportable nodes. If specific frame name is passed as `--frame` parameter, exportable images will be saved from this frame only.
@@ -199,10 +199,10 @@ npx figma-export images -f Assets -o ./output
 ### Usage
 
 ```bash
-# Global installation
+# Global
 figma-markup --frame "Frame Name" [--variant "Variant Name"] [--output ./output] [--name ComponentName] [--json]
 
-# Local installation
+# Local/npx
 npx figma-markup --frame "Frame Name" [--variant "Variant Name"] [--output ./output] [--name ComponentName] [--json]
 
 # Development
@@ -233,10 +233,10 @@ Export for a variant inside a component:
 
 ```bash
 # Global
-figma-markup --frame "Chat Message" --variant "Active"
+figma-markup --frame "Chat Message" --variant "Direction=Incoming"
 
 # Local/npx
-npx figma-markup --frame "Chat Message" --variant "Active"
+npx figma-markup --frame "Chat Message" --variant "Direction=Incoming"
 ```
 
 If multiple nodes with the same name are found, the utility will prompt you to select the desired one.

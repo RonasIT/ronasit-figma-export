@@ -67,13 +67,13 @@ async function fetchFigmaFile({ forceUpdate = false, cachePath = './output/figma
   }
 }
 
-// Универсальная функция для очистки имени с любым разделителем
+// Universal function to sanitize a name with any separator
 function sanitize(name, sep) {
   return name
     .toLowerCase()
-    .replace(/[ \/\\#&,+()$~%.'":*?<>{}-]/g, sep) // Все спецсимволы и дефисы на sep
-    .replace(new RegExp(sep + '+', 'g'), sep) // Множественные sep на один
-    .replace(new RegExp('^' + sep + '|' + sep + '$', 'g'), ''); // Удаление sep в начале и конце
+    .replace(/[ \/\\#&,+()$~%.'":*?<>{}-]/g, sep) // All special characters and hyphens replaced with sep
+    .replace(new RegExp(sep + '+', 'g'), sep) // Multiple sep replaced with one
+    .replace(new RegExp('^' + sep + '|' + sep + '$', 'g'), ''); // Removing sep at the beginning and end
 }
 
 program.name('figma-export-tool').description('A CLI tool to export Figma file content and variables').version('1.0.0');
@@ -135,26 +135,26 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
 
     function traverse(node, parentName = '') {
       if (node.visible === false) {
-        return; // Пропустить невидимые узлы
+        return; // Skip invisible nodes
       }
 
       if (node.type === 'INSTANCE' && (node.name === 'Typekit row' || node.name === 'Palette row')) {
         const variableData = traverseChildren(node, node.name);
 
         if (variableData && Object.keys(variableData.values).length > 0) {
-          // Сохраняем id в idMap
+          // Save id in idMap
           if (variableData.id) {
             idMap[variableData['variable name']] = variableData.id;
           }
           if (Object.keys(variableData.values).length === 1) {
-            // Если только одно значение, сохраняем его просто
+            // If only one value, save it directly
             if (node.name === 'Palette row') {
               paletteVars[variableData['variable name']] = Object.values(variableData.values)[0];
             } else {
               typekitVars[variableData['variable name']] = Object.values(variableData.values)[0];
             }
           } else {
-            // Иначе сохраняем объект
+            // Otherwise, save the object
             if (node.name === 'Palette row') {
               paletteVars[variableData['variable name']] = variableData.values;
             } else {
@@ -193,16 +193,16 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
 
       function collectValues(node, contextName) {
         if (node.visible === false) {
-          return; // Пропускать невидимые узлы
+          return; // Skip invisible nodes
         }
 
         if (node.type === 'TEXT' && node.name === 'variable name') {
-          variableData['variable name'] = sanitize(node.characters, '-'); // Преобразование имени
+          variableData['variable name'] = sanitize(node.characters, '-'); // Convert name
         }
 
         if (nodeType === 'Palette row' && node.name === 'value') {
           const color = resolveHexColor(node.fills);
-          // Ищем id
+          // Find id
           if (
             !id &&
             node.boundVariables &&
@@ -218,11 +218,11 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
           }
         } else if (nodeType === 'Typekit row' && node.name === 'value') {
           let value = node.characters;
-          // Добавляем px, если значение — число
+          // Add px if value is a number
           if (/^\d+$/.test(value)) {
             value = value + 'px';
           }
-          // Ищем id
+          // Find id
           if (!id && node.boundVariables && node.boundVariables.characters && node.boundVariables.characters.id) {
             id = node.boundVariables.characters.id;
           }
@@ -237,7 +237,7 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
       }
 
       for (const child of node.children || []) {
-        const contextName = sanitize(child.name, '-'); // Используем имя родителя
+        const contextName = sanitize(child.name, '-'); // Use parent name
         collectValues(child, contextName);
       }
 
@@ -258,13 +258,13 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
     fs.writeFileSync(jsonFilePath, JSON.stringify(variables, null, 2));
     console.log(`Extracted variables saved to: ${jsonFilePath}`);
 
-    // Сохраняем отдельный файл с id переменных
+    // Save a separate file with variable ids
     const idsFilePath = `${output}/variableIds.json`;
     fs.writeFileSync(idsFilePath, JSON.stringify(variableIds, null, 2));
     console.log(`Variable ids saved to: ${idsFilePath}`);
 
     // SCSS export
-    // paletteVars и typekitVars теперь берём из variables
+    // paletteVars and typekitVars are now taken from variables
     const paletteVars = Object.entries(variables.palette);
     const typekitVars = Object.entries(variables.typekit);
 
@@ -293,13 +293,13 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
 
     // Typekit
     scss += '\n  /* Typekit */\n';
-    // Собираем desktop и остальные платформы отдельно
+    // Collect desktop and other platforms separately
     const desktopVars = [];
     const platformVars = {};
     const scssBreakpoints = [];
     for (const [key, value] of typekitVars) {
       if (key.includes('breakpoint')) {
-        // Для каждого режима, кроме desktop, создаём SCSS-переменную
+        // For each mode, except desktop, create a SCSS variable
         if (typeof value === 'object') {
           for (const platform in value) {
             if (
@@ -314,7 +314,7 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
         } else if (value !== '-' && value !== '' && value !== undefined) {
           scssBreakpoints.push(`$mobile: ${value};`);
         }
-        continue; // Не добавлять в custom properties
+        continue; // Do not add to custom properties
       }
       if (typeof value === 'object') {
         for (const platform in value) {
@@ -337,13 +337,13 @@ async function exportVariables({ output = './output', name = 'figmaVariables.jso
         desktopVars.push(`  --${key}: ${outValue};`);
       }
     }
-    // Вставляем SCSS-переменные брейкпоинтов перед :root
+    // Insert SCSS breakpoint variables before :root
     if (scssBreakpoints.length) {
       scss = scssBreakpoints.join('\n') + '\n' + scss;
     }
     // Desktop
     scss += desktopVars.join('\n') + '\n';
-    // Остальные платформы
+    // Other platforms
     for (const platform in platformVars) {
       scss += `  @media (max-width: $${platform}) {\n` + platformVars[platform].join('\n') + '\n  }\n';
     }
@@ -385,7 +385,7 @@ async function exportIcons({
   }
   try {
     const fileData = await fetchFigmaFile({ forceUpdate });
-    // Поиск icons_sprite
+    // Search for icons_sprite
     function findIconsSprite(node) {
       if (node.name === frame) return node;
       if (node.children) {
@@ -400,14 +400,14 @@ async function exportIcons({
     if (!iconsSprite || !iconsSprite.children) {
       throw new Error('icons_sprite not found or has no children');
     }
-    // Генерация SCSS
+    // Generate SCSS
     let scss = `.icon {display: inline-block; vertical-align: top; width: 24px; height: 24px;\n background: url(icons.svg);  --bg-position: 0 0; background-position: var(--bg-position); background-repeat: no-repeat;\n`;
-    scss += `  &_mask {background: #000; mask-image: url(icons.svg); mask-repeat: no-repeat; mask-position: var(--bg-position);}\n`;
-    // Получаем координаты icons_sprite
+    scss += `  &_mask {background: var(--text-primary); mask-image: url(icons.svg); mask-repeat: no-repeat; mask-position: var(--bg-position);}\n`;
+    // Get coordinates of icons_sprite
     const spriteBox = iconsSprite.absoluteBoundingBox || { x: 0, y: 0 };
     for (const icon of iconsSprite.children) {
-      const name = sanitize(icon.name, '_'); // Для иконок используем _
-      // Получаем относительные координаты и округляем
+      const name = sanitize(icon.name, '_'); // For icons, use _
+      // Get relative coordinates and round
       let x =
         icon.absoluteBoundingBox && icon.absoluteBoundingBox.x !== undefined
           ? Math.round(icon.absoluteBoundingBox.x - spriteBox.x)
@@ -417,7 +417,7 @@ async function exportIcons({
           ? Math.round(icon.absoluteBoundingBox.y - spriteBox.y)
           : 0;
       let sizeRule = '';
-      // Проверяем размер
+      // Check size
       let w = icon.width !== undefined ? icon.width : icon.absoluteBoundingBox ? icon.absoluteBoundingBox.width : 24;
       let h = icon.height !== undefined ? icon.height : icon.absoluteBoundingBox ? icon.absoluteBoundingBox.height : 24;
       if (w !== 24 || h !== 24) {
@@ -458,7 +458,7 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
   }
   try {
     const fileData = await fetchFigmaFile({ forceUpdate });
-    // Поиск нужного фрейма, если указан
+    // Search for the specified frame, if provided
     let searchRoot = fileData.document;
     if (frame) {
       function findFrame(node) {
@@ -478,7 +478,7 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
       }
       searchRoot = frameNode;
     }
-    // Рекурсивный поиск всех видимых узлов с exportSettings
+    // Recursive search for all visible nodes with exportSettings
     function findExportableNodes(node, result = []) {
       if (node.visible === false) return result;
       if (node.exportSettings && node.exportSettings.length > 0) {
@@ -497,7 +497,7 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
       return;
     }
     if (list) {
-      // Собираем все изображения
+      // Collect all images
       const imagesList = [];
       for (const node of exportableNodes) {
         for (const setting of node.exportSettings) {
@@ -546,10 +546,10 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
       }
       return;
     }
-    // Получаем изображения через Figma API
+    // Get images via Figma API
     for (const node of exportableNodes) {
       for (const setting of node.exportSettings) {
-        // Формируем параметры запроса
+        // Form request parameters
         let format = (setting.format || 'png').toLowerCase();
         const suffix = setting.suffix || '';
         let scale = 1;
@@ -579,12 +579,12 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
           console.warn(`Invalid nodeId for node: ${node.name}`);
           continue;
         }
-        // Проверка поддерживаемых форматов
+        // Check supported formats
         if (!['svg', 'png', 'jpg', 'pdf'].includes(format)) {
           console.warn(`Unsupported format '${format}' for node: ${node.name} (${nodeId}). Skipped.`);
           continue;
         }
-        // Запрос к Figma API
+        // Request to Figma API
         try {
           const imageUrlResp = await axios.get(`${FIGMA_API_URL}/v1/images/${FIGMA_FILE_ID}`, {
             headers: { 'X-Figma-Token': FIGMA_API_TOKEN },
@@ -599,11 +599,11 @@ async function exportImages({ output = './output', frame, list = false, forceUpd
             console.warn(`No image URL for node ${node.name} (${nodeId}) [format: ${format}, scale: ${scale}]`);
             continue;
           }
-          // Скачиваем изображение
+          // Download image
           const imageResp = await axios.get(imageUrl, {
             responseType: 'arraybuffer',
           });
-          // Формируем имя файла
+          // Form file name
           const baseName = sanitize(node.name, '_');
           const fileName = `${baseName}${suffix ? suffix : ''}.${format}`;
           const filePath = `${output}/img/${fileName}`;
