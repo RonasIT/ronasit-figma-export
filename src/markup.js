@@ -353,7 +353,6 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
     // Text node properties
     if (node.type === 'TEXT') {
       const style = node.style || {};
-      // --- Текстовые свойства ---
       // color (fills) — поддержка переменных и fallback
       let colorVar = null;
       let fillVisible = true;
@@ -410,7 +409,6 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
       // font-size variable
       let fontSizeVar = null;
       if (node.boundVariables && node.boundVariables.fontSize) {
-        // поддержка и объекта, и массива
         const fontSizeId = Array.isArray(node.boundVariables.fontSize)
           ? node.boundVariables.fontSize[0]?.id
           : node.boundVariables.fontSize.id;
@@ -439,15 +437,15 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
         props.push(`line-height: ${formatNum(style.lineHeightPercentFontSize)}%;`);
       }
     }
-    // --- Универсальные свойства (для всех узлов) ---
-    // Background только для не-текстовых узлов
+    // --- Universal properties (for all nodes) ---
+    // Background only for non-text nodes
     let bgVar = null;
     let bgVisible = true;
     if (node.fills && Array.isArray(node.fills) && node.fills[0] && node.fills[0].visible === false) {
       bgVisible = false;
     }
     if (bgVisible && node.type !== 'TEXT') {
-      // Фоновое изображение
+      // Background image
       if (node.fills && Array.isArray(node.fills)) {
         const imageFill = node.fills.find((f) => f.type === 'IMAGE');
         if (imageFill) {
@@ -508,7 +506,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
     // Box-shadow
     if (Array.isArray(node.effects)) {
       const shadows = node.effects.filter((e) => e.type === 'DROP_SHADOW' && e.visible !== false);
-      // Получаем variableID для box-shadow, если есть
+      // Get variableID for box-shadow, if any
       let shadowVarId = null;
       if (node.boundVariables && node.boundVariables.effects) {
         let effectVars = node.boundVariables.effects;
@@ -629,7 +627,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
     if (typeof node.maxHeight === 'number') {
       props.push(`max-height: ${formatNum(node.maxHeight)}px;`);
     }
-    // width/height/grow/shrink в зависимости от layoutSizing и направления layoutMode родителя
+    // width/height/grow/shrink depending on layoutSizing and direction of parent layoutMode
     props.push(...getLayoutSizingProps(node, parentLayoutMode));
     // Aspect ratio (Figma: targetAspectRatio or preserveRatio)
     if (
@@ -650,7 +648,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
       const ratio = node.absoluteBoundingBox.width / node.absoluteBoundingBox.height;
       props.push(`aspect-ratio: ${formatNum(ratio)};`);
     }
-    // После формирования props фильтруем свойства с дефолтными значениями
+    // After forming props, filter properties with default values
     const defaultVars = {
       color: 'var(--text-primary)',
       'font-size': 'var(--font-size-default)',
@@ -666,7 +664,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
       }
       return true;
     });
-    // Форматирование: первая строка после { максимально длинная (до 80 символов), остальные — с отступом
+    // Formatting: first line after { is as long as possible (up to 80 characters), the rest are indented
     let scssLines = [];
     let line = '';
     props.forEach((prop, i) => {
@@ -678,7 +676,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
       }
     });
     if (line) scssLines.push(line.trim());
-    // Первая строка — без отступа, остальные — с отступом
+    // First line is without indent, the rest are indented
     let scssRule = '';
     if (scssLines.length > 0) {
       scssRule = scssLines[0];
@@ -769,7 +767,7 @@ program
       process.exit(1);
     }
     const figmaData = JSON.parse(fs.readFileSync(input, 'utf-8'));
-    // Рекурсивно ищем все узлы по имени
+    // Recursively find all nodes by name
     function findAllNodesByName(node, name, acc = []) {
       if (node.name === name) acc.push(node);
       if (node.children) {
@@ -819,7 +817,7 @@ program
     if (foundNodes.length === 1) {
       proceedWithNode(foundNodes[0]);
     } else {
-      // Несколько узлов — выводим список и спрашиваем пользователя
+      // Multiple nodes — output list and ask user
       console.log(`Found multiple nodes named '${frame}':`);
       foundNodes.forEach((node, idx) => {
         console.log(`${idx + 1}: id=${node.id}, type=${node.type}`);

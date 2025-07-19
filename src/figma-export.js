@@ -111,7 +111,7 @@ program
   .command('variables')
   .description('Extract variables from the Figma file and save them to a JSON file')
   .option('-o, --output <type>', 'Output directory', OUTPUT_DIR)
-  .option('-n, --name <type>', 'Name of output JSON file', 'figmaVariables.json')
+  .option('-n, --name <type>', 'Name of output JSON file', 'variables.json')
   .option('-u, --update', 'Force update from Figma API, ignore local cache')
   .action(async (cmd) => {
     await exportVariables({
@@ -121,7 +121,7 @@ program
     });
   });
 
-async function exportVariables({ output = OUTPUT_DIR, name = 'figmaVariables.json', forceUpdate = false } = {}) {
+async function exportVariables({ output = OUTPUT_DIR, name = 'variables.json', forceUpdate = false } = {}) {
   console.log('Exporting variables...');
   if (!fs.existsSync(output)) {
     fs.mkdirSync(output, { recursive: true });
@@ -162,9 +162,6 @@ async function exportVariables({ output = OUTPUT_DIR, name = 'figmaVariables.jso
               typekitVars[variableData['variable name']] = variableData.values;
             }
           }
-          console.log(
-            `Extracted variable - Name: ${variableData['variable name']}, Values: ${JSON.stringify(variableData.values)}, Id: ${variableData.id}`,
-          );
         }
       }
 
@@ -349,7 +346,7 @@ async function exportVariables({ output = OUTPUT_DIR, name = 'figmaVariables.jso
       scss += `  @media (max-width: $${platform}) {\n` + platformVars[platform].join('\n') + '\n  }\n';
     }
     scss += '}\n';
-    const scssFilePath = `${output}/scss/figmaVariables.scss`;
+    const scssFilePath = `${output}/scss/variables.scss`;
     fs.writeFileSync(scssFilePath, scss);
     console.log(`SCSS variables saved to: ${scssFilePath}`);
   } catch (error) {

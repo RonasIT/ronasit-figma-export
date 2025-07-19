@@ -88,14 +88,14 @@ figma-markup [options]
   # Global
   figma-export variables
   # With options
-  figma-export variables -o ./output -n figmaVariables.json -u
+  figma-export variables -o ./output -n variables.json -u
 
   # Local/npx
-  npx figma-export variables -o ./output -n figmaVariables.json -u
+  npx figma-export variables -o ./output -n variables.json -u
   ```
 
   Saves:
-  - `figmaVariables.json` — palette and typography variables in the format:
+  - `variables.json` — palette and typography variables in the format:
 
     ```json
     {
@@ -104,8 +104,12 @@ figma-markup [options]
     }
     ```
 
-  - `variableIds.json` — variable IDs.
-  - `figmaVariables.scss` — SCSS variables.
+  - `variableIds.json` — variable IDs. 
+    
+    Variable IDs map is important for `figma-markup` tool, do not delete or
+    rename this file for better markup exports.
+    
+  - `variables.scss` — SCSS variables.
 
 - **Export icons:**
 
