@@ -11,6 +11,7 @@ const program = new Command();
 const FIGMA_API_URL = 'https://api.figma.com';
 const FIGMA_API_TOKEN = process.env.FIGMA_API_TOKEN;
 const FIGMA_FILE_URL = process.env.FIGMA_FILE_URL;
+const OUTPUT_DIR = process.env.OUTPUT_DIR || './output';
 
 if (!FIGMA_API_TOKEN || !FIGMA_FILE_URL) {
   console.error('Please provide FIGMA_API_TOKEN and FIGMA_FILE_URL in your .env file');
@@ -31,7 +32,7 @@ const FIGMA_FILE_ID = extractFileId(FIGMA_FILE_URL);
 let fileDataCache = null;
 
 // Function to fetch Figma file - reads from local cache unless forceUpdate is true or cache is missing
-async function fetchFigmaFile({ forceUpdate = false, cachePath = './output/figmaFileContent.json' } = {}) {
+async function fetchFigmaFile({ forceUpdate = false, cachePath = `${OUTPUT_DIR}/figmaFileContent.json` } = {}) {
   if (!forceUpdate) {
     // Try to read from local cache file
     try {
@@ -81,13 +82,13 @@ program.name('figma-export-tool').description('A CLI tool to export Figma file c
 program
   .command('content')
   .description('Export the Figma file content to a JSON file')
-  .option('-o, --output <type>', 'Output directory', './output')
+  .option('-o, --output <type>', 'Output directory', OUTPUT_DIR)
   .option('-n, --name <type>', 'Name of output JSON file', 'figmaFileContent.json')
   .action(async (cmd) => {
     await exportContent({ output: cmd.output, name: cmd.name });
   });
 
-async function exportContent({ output = './output', name = 'figmaFileContent.json' } = {}) {
+async function exportContent({ output = OUTPUT_DIR, name = 'figmaFileContent.json' } = {}) {
   console.log('Exporting file content...');
   if (!fs.existsSync(output)) {
     fs.mkdirSync(output, { recursive: true });
@@ -109,7 +110,7 @@ async function exportContent({ output = './output', name = 'figmaFileContent.jso
 program
   .command('variables')
   .description('Extract variables from the Figma file and save them to a JSON file')
-  .option('-o, --output <type>', 'Output directory', './output')
+  .option('-o, --output <type>', 'Output directory', OUTPUT_DIR)
   .option('-n, --name <type>', 'Name of output JSON file', 'figmaVariables.json')
   .option('-u, --update', 'Force update from Figma API, ignore local cache')
   .action(async (cmd) => {
@@ -120,7 +121,7 @@ program
     });
   });
 
-async function exportVariables({ output = './output', name = 'figmaVariables.json', forceUpdate = false } = {}) {
+async function exportVariables({ output = OUTPUT_DIR, name = 'figmaVariables.json', forceUpdate = false } = {}) {
   console.log('Exporting variables...');
   if (!fs.existsSync(output)) {
     fs.mkdirSync(output, { recursive: true });
@@ -361,7 +362,7 @@ program
   .command('icons')
   .description('Extract icons from Figma and generate icons.scss')
   .option('-f, --frame <type>', 'Frame name', 'icon_sprite')
-  .option('-o, --output <type>', 'Output directory', './output')
+  .option('-o, --output <type>', 'Output directory', OUTPUT_DIR)
   .option('-n, --name <type>', 'Name of output SCSS file', 'icons.scss')
   .option('-u, --update', 'Force update from Figma API, ignore local cache')
   .action(async (cmd) => {
@@ -375,7 +376,7 @@ program
 
 async function exportIcons({
   frame = 'icon_sprite',
-  output = './output',
+  output = OUTPUT_DIR,
   name = 'icons.scss',
   forceUpdate = false,
 } = {}) {
@@ -438,7 +439,7 @@ async function exportIcons({
 program
   .command('images')
   .description('Export images for elements with exportSettings from Figma')
-  .option('-o, --output <type>', 'Output directory', './output')
+  .option('-o, --output <type>', 'Output directory', OUTPUT_DIR)
   .option('-f, --frame <type>', 'Frame name (optional)')
   .option('--list', 'List all exportable images without downloading')
   .option('-u, --update', 'Force update from Figma API, ignore local cache')
@@ -451,7 +452,7 @@ program
     });
   });
 
-async function exportImages({ output = './output', frame, list = false, forceUpdate = false } = {}) {
+async function exportImages({ output = OUTPUT_DIR, frame, list = false, forceUpdate = false } = {}) {
   console.log('Exporting images...');
   if (!list && !fs.existsSync(`${output}/img`)) {
     fs.mkdirSync(`${output}/img`, { recursive: true });

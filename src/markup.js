@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
+require('dotenv').config();
 const { Command } = require('commander');
 const fs = require('fs');
 const path = require('path');
+
+const OUTPUT_DIR = process.env.OUTPUT_DIR || './output';
 
 // Utility for converting part of a Figma file structure to HTML and CSS
 /**
@@ -14,7 +17,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
   // Load variableIds.json if present
   let variableIdMap = {};
   try {
-    variableIdMap = JSON.parse(fs.readFileSync(path.join('./output/variableIds.json'), 'utf-8'));
+    variableIdMap = JSON.parse(fs.readFileSync(path.join(OUTPUT_DIR, 'variableIds.json'), 'utf-8'));
   } catch (e) {
     // ignore if not found
   }
@@ -150,29 +153,47 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
 
       const componentName = toPascalCase(node.name);
       // Convert componentProperties to JSX props
-      let propsStr = `className={styles.${nodeClass}}`;
+      let propsArr = [`className={styles.${nodeClass}}`];
       if (node.componentProperties && typeof node.componentProperties === 'object') {
         for (const [key, valueObj] of Object.entries(node.componentProperties)) {
           // Remove # and everything after for prop name
           let cleanKey = key.includes('#') ? key.split('#')[0] : key;
           let pascal = toPascalCase(cleanKey);
           let propName = pascal.charAt(0).toLowerCase() + pascal.slice(1);
+          // If propName is empty, generate a valid name with '_' prefix and ASCII codes
+          if (!propName) {
+            propName =
+              '_' +
+              Array.from(cleanKey)
+                .map((c) => (c.match(/[a-zA-Z0-9]/) ? c : c.charCodeAt(0)))
+                .join('');
+          }
           let propValue = valueObj && typeof valueObj.value !== 'undefined' ? valueObj.value : valueObj;
           if (typeof propValue === 'string') {
             // Convert 'True'/'False' to boolean
             if (propValue.toLowerCase() === 'true') {
-              propsStr += ` ${propName}={true}`;
+              propsArr.push(`${propName}={true}`);
             } else if (propValue.toLowerCase() === 'false') {
-              propsStr += ` ${propName}={false}`;
+              propsArr.push(`${propName}={false}`);
             } else {
-              propsStr += ` ${propName}=\"${propValue}\"`;
+              propsArr.push(`${propName}="${propValue}"`);
             }
           } else if (typeof propValue === 'number' || typeof propValue === 'boolean') {
-            propsStr += ` ${propName}={${propValue}}`;
+            propsArr.push(`${propName}={${propValue}}`);
           }
         }
       }
-      return `${indentStr}<${componentName} ${propsStr} />`;
+      // Formatting logic
+      let jsxLine = `<${componentName} ${propsArr.join(' ')} />`;
+      if (jsxLine.length <= 80) {
+        return indentStr + jsxLine;
+      } else {
+        // Multiline formatting
+        let multiline = `${indentStr}<${componentName}\n`;
+        multiline += propsArr.map((p) => `${indentStr}  ${p}`).join('\n') + '\n';
+        multiline += `${indentStr}/>`;
+        return multiline;
+      }
     }
     let childrenJsx = '';
     if (node.children && node.children.length > 0) {
@@ -245,6 +266,68 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
       }
       return props;
     }
+    // Helper for calculating layoutSizing properties
+    function getLayoutSizingProps(node, parentLayoutMode) {
+      const layoutProps = [];
+      if (parentLayoutMode === 'HORIZONTAL' || parentLayoutMode === 'VERTICAL') {
+        if (parentLayoutMode === 'HORIZONTAL') {
+          if (
+            node.layoutSizingHorizontal === 'FIXED' &&
+            node.absoluteBoundingBox &&
+            typeof node.absoluteBoundingBox.width === 'number'
+          ) {
+            layoutProps.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
+          } else if (node.layoutSizingHorizontal === 'FILL') {
+            layoutProps.push('flex-grow: 1; flex-shrink: 1;');
+          }
+          if (
+            node.layoutSizingVertical === 'FIXED' &&
+            node.absoluteBoundingBox &&
+            typeof node.absoluteBoundingBox.height === 'number'
+          ) {
+            layoutProps.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
+          } else if (node.layoutSizingVertical === 'FILL') {
+            layoutProps.push('align-self: stretch;');
+          }
+        } else if (parentLayoutMode === 'VERTICAL') {
+          if (
+            node.layoutSizingVertical === 'FIXED' &&
+            node.absoluteBoundingBox &&
+            typeof node.absoluteBoundingBox.height === 'number'
+          ) {
+            layoutProps.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
+          } else if (node.layoutSizingVertical === 'FILL') {
+            layoutProps.push('flex-grow: 1; flex-shrink: 1;');
+          }
+          if (
+            node.layoutSizingHorizontal === 'FIXED' &&
+            node.absoluteBoundingBox &&
+            typeof node.absoluteBoundingBox.width === 'number'
+          ) {
+            layoutProps.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
+          } else if (node.layoutSizingHorizontal === 'FILL') {
+            layoutProps.push('align-self: stretch;');
+          }
+        }
+      } else {
+        // If no parent layoutMode — only fixed sizes
+        if (
+          node.layoutSizingHorizontal === 'FIXED' &&
+          node.absoluteBoundingBox &&
+          typeof node.absoluteBoundingBox.width === 'number'
+        ) {
+          layoutProps.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
+        }
+        if (
+          node.layoutSizingVertical === 'FIXED' &&
+          node.absoluteBoundingBox &&
+          typeof node.absoluteBoundingBox.height === 'number'
+        ) {
+          layoutProps.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
+        }
+      }
+      return layoutProps;
+    }
     // --- Absolute and fixed positioning ---
     if (node.isFixed === true) {
       props.push('position: fixed;');
@@ -262,12 +345,8 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
 
     // Layout sizing for INSTANCE nodes
     if (node.type === 'INSTANCE') {
-      if (node.layoutSizingHorizontal) {
-        props.push(`layout-sizing-horizontal: ${node.layoutSizingHorizontal.toLowerCase()};`);
-      }
-      if (node.layoutSizingVertical) {
-        props.push(`layout-sizing-vertical: ${node.layoutSizingVertical.toLowerCase()};`);
-      }
+      // Output layoutSizing properties in the same format as for regular nodes
+      props.push(...getLayoutSizingProps(node, parentLayoutMode));
       // Only output positioning/layoutSizing for INSTANCE
       return props.join(' ');
     }
@@ -551,63 +630,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
       props.push(`max-height: ${formatNum(node.maxHeight)}px;`);
     }
     // width/height/grow/shrink в зависимости от layoutSizing и направления layoutMode родителя
-    if (parentLayoutMode === 'HORIZONTAL' || parentLayoutMode === 'VERTICAL') {
-      if (parentLayoutMode === 'HORIZONTAL') {
-        if (
-          node.layoutSizingHorizontal === 'FIXED' &&
-          node.absoluteBoundingBox &&
-          typeof node.absoluteBoundingBox.width === 'number'
-        ) {
-          props.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
-        } else if (node.layoutSizingHorizontal === 'FILL') {
-          props.push('flex-grow: 1; flex-shrink: 1;');
-        }
-        if (
-          node.layoutSizingVertical === 'FIXED' &&
-          node.absoluteBoundingBox &&
-          typeof node.absoluteBoundingBox.height === 'number'
-        ) {
-          props.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
-        } else if (node.layoutSizingVertical === 'FILL') {
-          props.push('align-self: stretch;');
-        }
-      } else if (parentLayoutMode === 'VERTICAL') {
-        if (
-          node.layoutSizingVertical === 'FIXED' &&
-          node.absoluteBoundingBox &&
-          typeof node.absoluteBoundingBox.height === 'number'
-        ) {
-          props.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
-        } else if (node.layoutSizingVertical === 'FILL') {
-          props.push('flex-grow: 1; flex-shrink: 1;');
-        }
-        if (
-          node.layoutSizingHorizontal === 'FIXED' &&
-          node.absoluteBoundingBox &&
-          typeof node.absoluteBoundingBox.width === 'number'
-        ) {
-          props.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
-        } else if (node.layoutSizingHorizontal === 'FILL') {
-          props.push('align-self: stretch;');
-        }
-      }
-    } else {
-      // Если нет layoutMode у родителя — только фиксированные размеры
-      if (
-        node.layoutSizingHorizontal === 'FIXED' &&
-        node.absoluteBoundingBox &&
-        typeof node.absoluteBoundingBox.width === 'number'
-      ) {
-        props.push(`width: ${formatNum(node.absoluteBoundingBox.width)}px;`);
-      }
-      if (
-        node.layoutSizingVertical === 'FIXED' &&
-        node.absoluteBoundingBox &&
-        typeof node.absoluteBoundingBox.height === 'number'
-      ) {
-        props.push(`height: ${formatNum(node.absoluteBoundingBox.height)}px;`);
-      }
-    }
+    props.push(...getLayoutSizingProps(node, parentLayoutMode));
     // Aspect ratio (Figma: targetAspectRatio or preserveRatio)
     if (
       node.targetAspectRatio &&
@@ -734,11 +757,11 @@ program.name('markup').description('Convert a part of a Figma file structure to 
 
 program
   .requiredOption('-f, --frame <name>', 'Frame or node name in the Figma file structure')
-  .option('-i, --input <path>', 'Path to Figma JSON file', './output/figmaFileContent.json')
-  .option('-o, --output <dir>', 'Output directory', './output')
+  .option('-i, --input <path>', 'Path to Figma JSON file', `${OUTPUT_DIR}/figmaFileContent.json`)
+  .option('-o, --output <dir>', 'Output directory', OUTPUT_DIR)
   .option('-n, --name <component>', 'Component name to use as root class')
-  .option('--json', 'Also save the selected Figma node as a JSON file')
-  .option('-v --variant <variant>', 'Variant node name inside the frame')
+  .option('-v, --variant <variant>', 'Variant node name inside the component frame')
+  .option('-j, --json', 'Also save the selected Figma node as a JSON file')
   .action((options) => {
     const { frame, input, output, name, json, variant } = options;
     if (!fs.existsSync(input)) {
