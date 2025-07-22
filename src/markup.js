@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 
+// to do:
+// * add recursive component markup
+// * add automatic mobile variant styles
+// * text nodes markup improvement (span vs div)
+
 require('dotenv').config();
 const { Command } = require('commander');
 const fs = require('fs');
@@ -7,26 +12,26 @@ const path = require('path');
 
 const OUTPUT_DIR = process.env.OUTPUT_DIR || './output';
 
+// Helper to sanitize class and file names
+function sanitize(name) {
+  return String(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '_');
+}
+
 // Utility for converting part of a Figma file structure to HTML and CSS
 /**
  * Converts a part of the Figma structure to HTML and CSS
  * @param {Object} figmaNode - Node or part of the Figma structure
  * @returns {{ html: string, css: string }}
  */
-function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
+function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument, componentsMap = {}, componentSetsMap = {}) {
   // Load variableIds.json if present
   let variableIdMap = {};
   try {
     variableIdMap = JSON.parse(fs.readFileSync(path.join(OUTPUT_DIR, 'variableIds.json'), 'utf-8'));
   } catch (e) {
     // ignore if not found
-  }
-
-  // Helper to sanitize class names
-  function sanitize(name) {
-    return String(name)
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, '_');
   }
 
   // Helper to convert a string to PascalCase for component names
@@ -80,6 +85,10 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
 
   // Collect unique class names and their corresponding nodes
   const classMap = new Map();
+  // Collect INSTANCE nodes encountered during generation
+  const encounteredInstances = [];
+  // Collect master components and their names encountered during generation
+  const encounteredComponents = [];
 
   // Собираем карту id -> parentNode
   // Build parent map using the full document
@@ -143,6 +152,22 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
     if (node.type === 'INSTANCE' && !isRoot) {
       if (!classMap.has(nodeClass)) {
         classMap.set(nodeClass, node);
+        const masterComponent = findMasterComponent(node);
+        if (masterComponent) {
+          // Resolve name: if componentSetId in componentsMap, use set name; else use master's name
+          let resolvedName = masterComponent.name;
+          const compMeta = componentsMap[masterComponent.id];
+          if (compMeta && compMeta.componentSetId && componentSetsMap[compMeta.componentSetId]) {
+            const setNode = componentSetsMap[compMeta.componentSetId];
+            if (setNode && setNode.name) {
+              resolvedName = setNode.name;
+            }
+          }
+          // Avoid duplicates by id
+          if (!encounteredComponents.some((e) => e.node.id === masterComponent.id)) {
+            encounteredComponents.push({ node: masterComponent, name: resolvedName });
+          }
+        }
       }
 
       const masterComponent = findMasterComponent(node);
@@ -222,8 +247,11 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
   }
 
   // Generate SCSS for a node
-  function nodeToScss(node, className, parentLayoutMode = null, parentNode = null) {
+  function nodeToScss(node, className, parentLayoutMode = null, parentNode = null, isRoot = false) {
     let props = [];
+    // Absolute and fixed positioning properties
+    props.push(...getAbsoluteAndFixedPos(node, parentNode));
+
     // Helper to resolve SCSS variable by boundVariable
     function getScssVarById(id) {
       for (const [varName, varId] of Object.entries(variableIdMap)) {
@@ -328,27 +356,52 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
       }
       return layoutProps;
     }
-    // --- Absolute and fixed positioning ---
-    if (node.isFixed === true) {
-      props.push('position: fixed;');
-    } else if (node.layoutPositioning === 'ABSOLUTE') {
-      props.push('position: absolute;');
-    }
-    if (node.isFixed === true || node.layoutPositioning === 'ABSOLUTE') {
-      if (node.absoluteBoundingBox && parentNode && parentNode.absoluteBoundingBox) {
-        const box = node.absoluteBoundingBox;
-        const parentBox = parentNode.absoluteBoundingBox;
-        const constraints = node.constraints || {};
-        props.push(...getPositionProps(box, parentBox, constraints));
+    // Helper for all positioning logic
+    function getAbsoluteAndFixedPos(node, parentNode) {
+      const props = [];
+      // Fixed positioning
+      if (node.isFixed === true) {
+        props.push('position: fixed;');
+        if (node.absoluteBoundingBox && parentNode && parentNode.absoluteBoundingBox) {
+          const box = node.absoluteBoundingBox;
+          const parentBox = parentNode.absoluteBoundingBox;
+          const constraints = node.constraints || {};
+          props.push(...getPositionProps(box, parentBox, constraints));
+        } else if (node.absoluteBoundingBox) {
+          // Fallback: relative to (0,0) if no parent
+          const box = node.absoluteBoundingBox;
+          props.push(`left: ${formatNum(box.x)}px;`);
+          props.push(`top: ${formatNum(box.y)}px;`);
+        }
+        return props;
       }
-    }
+      // Absolute positioning
+      if (node.layoutPositioning === 'ABSOLUTE') {
+        props.push('position: absolute;');
+        if (node.absoluteBoundingBox && parentNode && parentNode.absoluteBoundingBox) {
+          const box = node.absoluteBoundingBox;
+          const parentBox = parentNode.absoluteBoundingBox;
+          const constraints = node.constraints || {};
+          props.push(...getPositionProps(box, parentBox, constraints));
+        }
+        return props;
+      }
+      // Auto-positioning for nodes without layoutMode
 
-    // Layout sizing for INSTANCE nodes
-    if (node.type === 'INSTANCE') {
-      // Output layoutSizing properties in the same format as for regular nodes
-      props.push(...getLayoutSizingProps(node, parentLayoutMode));
-      // Only output positioning/layoutSizing for INSTANCE
-      return props.join(' ');
+      if (!node.layoutMode) {
+        if ((parentNode && parentNode.layoutMode) || isRoot) {
+          props.push('position: relative;');
+        } else if (!isRoot) {
+          props.push('position: absolute;');
+          if (node.absoluteBoundingBox && parentNode && parentNode.absoluteBoundingBox) {
+            const box = node.absoluteBoundingBox;
+            const parentBox = parentNode.absoluteBoundingBox;
+            const constraints = node.constraints || {};
+            props.push(...getPositionProps(box, parentBox, constraints));
+          }
+        }
+      }
+      return props;
     }
     // Text node properties
     if (node.type === 'TEXT') {
@@ -710,7 +763,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
         );
       }
     }
-    const rootRule = nodeToScss(figmaNode, rootClass, null, null);
+    const rootRule = nodeToScss(figmaNode, rootClass, null, null, true);
     let rootRuleWithRel = rootRule;
     // Only add position: relative if root does not have position: absolute or fixed
     if (absOrFixedChildMap.get(figmaNode.id) && !/position:\s*(absolute|fixed)/.test(rootRule)) {
@@ -746,6 +799,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument) {
   return {
     jsx,
     scss: scss,
+    encounteredComponents,
   };
 }
 
@@ -760,8 +814,9 @@ program
   .option('-n, --name <component>', 'Component name to use as root class')
   .option('-v, --variant <variant>', 'Variant node name inside the component frame')
   .option('-j, --json', 'Also save the selected Figma node as a JSON file')
+  .option('-r, --recursive', 'Process all INSTANCE nodes recursively')
   .action((options) => {
-    const { frame, input, output, name, json, variant } = options;
+    const { frame, input, output, name, json, variant, recursive } = options;
     if (!fs.existsSync(input)) {
       console.error(`Input file not found: ${input}`);
       process.exit(1);
@@ -789,7 +844,7 @@ program
       console.error(`Frame or node named '${frame}' not found in the Figma file.`);
       process.exit(1);
     }
-    function proceedWithNode(targetNode) {
+    function proceedWithNode(targetNode, recursive = false, componentNameOverride = null) {
       let nodeForExport = targetNode;
       if (variant) {
         const variantNode = findVariantNode(targetNode, variant);
@@ -799,8 +854,15 @@ program
         }
         nodeForExport = variantNode;
       }
-      const rootClass = name ? name : variant ? variant : frame;
-      const { jsx, scss } = convertFigmaToMarkup(nodeForExport, rootClass, figmaData.document);
+      // Use provided componentNameOverride or fallback to rootClass logic
+      const rootClass = componentNameOverride ? componentNameOverride : name ? name : variant ? variant : frame;
+      const { jsx, scss, encounteredComponents } = convertFigmaToMarkup(
+        nodeForExport,
+        rootClass,
+        figmaData.document,
+        figmaData.components || {},
+        figmaData.componentSets || {},
+      );
       if (!fs.existsSync(output)) {
         fs.mkdirSync(output, { recursive: true });
       }
@@ -809,13 +871,19 @@ program
       if (json) {
         fs.writeFileSync(path.join(output, `${rootClass}.json`), JSON.stringify(nodeForExport, null, 2));
       }
-      console.log(`JSX and SCSS for '${rootClass}' exported to ${output}`);
-      if (json) {
-        console.log(`JSON for '${rootClass}' exported to ${output}`);
+      console.log(`'${rootClass}' exported to ${output}`);
+      if (recursive) {
+        for (const { node: component, name: compName } of encounteredComponents) {
+          if (component && component !== nodeForExport) {
+            // Use sanitized component.name as file name for recursive components
+            const sanitizedName = sanitize(compName);
+            proceedWithNode(component, false, sanitizedName);
+          }
+        }
       }
     }
     if (foundNodes.length === 1) {
-      proceedWithNode(foundNodes[0]);
+      proceedWithNode(foundNodes[0], recursive, name ? name : variant ? variant : frame);
     } else {
       // Multiple nodes — output list and ask user
       console.log(`Found multiple nodes named '${frame}':`);
@@ -835,7 +903,7 @@ program
           process.exit(1);
         }
         rl.close();
-        proceedWithNode(foundNodes[num - 1]);
+        proceedWithNode(foundNodes[num - 1], recursive, name ? name : variant ? variant : frame);
       });
     }
   });
