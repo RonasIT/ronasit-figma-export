@@ -164,7 +164,10 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument, compo
             }
           }
           // Avoid duplicates by id
-          if (!encounteredComponents.some((e) => e.node.id === masterComponent.id)) {
+          if (
+            !isIconComponent(masterComponent) &&
+            !encounteredComponents.some((e) => e.node.id === masterComponent.id)
+          ) {
             encounteredComponents.push({ node: masterComponent, name: resolvedName });
           }
         }
@@ -173,7 +176,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument, compo
       const masterComponent = findMasterComponent(node);
       if (masterComponent && isIconComponent(masterComponent)) {
         // Render as <Icon name="nodeName" />
-        return `${indentStr}<Icon name=\"${sanitize(node.name)}\" />`;
+        return `${indentStr}<Icon className={styles.${nodeClass}} name=\"${sanitize(masterComponent.name)}\" />`;
       }
 
       const componentName = toPascalCase(node.name);
@@ -388,18 +391,16 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument, compo
       }
       // Auto-positioning for nodes without layoutMode
 
-      if (!node.layoutMode) {
-        if ((parentNode && parentNode.layoutMode) || isRoot) {
-          props.push('position: relative;');
-        } else if (!isRoot) {
-          props.push('position: absolute;');
-          if (node.absoluteBoundingBox && parentNode && parentNode.absoluteBoundingBox) {
-            const box = node.absoluteBoundingBox;
-            const parentBox = parentNode.absoluteBoundingBox;
-            const constraints = node.constraints || {};
-            props.push(...getPositionProps(box, parentBox, constraints));
-          }
+      if (parentNode && !parentNode.layoutMode && !isRoot) {
+        props.push('position: absolute;');
+        if (node.absoluteBoundingBox && parentNode && parentNode.absoluteBoundingBox) {
+          const box = node.absoluteBoundingBox;
+          const parentBox = parentNode.absoluteBoundingBox;
+          const constraints = node.constraints || {};
+          props.push(...getPositionProps(box, parentBox, constraints));
         }
+      } else if (!node.layoutMode && node.children && node.children.length > 0) {
+        props.push('position: relative;');
       }
       return props;
     }
@@ -814,7 +815,7 @@ program
   .option('-n, --name <component>', 'Component name to use as root class')
   .option('-v, --variant <variant>', 'Variant node name inside the component frame')
   .option('-j, --json', 'Also save the selected Figma node as a JSON file')
-  .option('-r, --recursive', 'Process all INSTANCE nodes recursively')
+  .option('-r, --recursive', 'Process all components recursively')
   .action((options) => {
     const { frame, input, output, name, json, variant, recursive } = options;
     if (!fs.existsSync(input)) {
@@ -863,13 +864,13 @@ program
         figmaData.components || {},
         figmaData.componentSets || {},
       );
-      if (!fs.existsSync(output)) {
-        fs.mkdirSync(output, { recursive: true });
+      if (!fs.existsSync(output + '/components')) {
+        fs.mkdirSync(output + '/components', { recursive: true });
       }
-      fs.writeFileSync(path.join(output, `${rootClass}.jsx`), jsx);
-      fs.writeFileSync(path.join(output, `${rootClass}.scss`), scss);
+      fs.writeFileSync(path.join(output, `/components/${rootClass}.jsx`), jsx);
+      fs.writeFileSync(path.join(output, `/components/${rootClass}.scss`), scss);
       if (json) {
-        fs.writeFileSync(path.join(output, `${rootClass}.json`), JSON.stringify(nodeForExport, null, 2));
+        fs.writeFileSync(path.join(output, `/components/${rootClass}.json`), JSON.stringify(nodeForExport, null, 2));
       }
       console.log(`'${rootClass}' exported to ${output}`);
       if (recursive) {
@@ -877,7 +878,7 @@ program
           if (component && component !== nodeForExport) {
             // Use sanitized component.name as file name for recursive components
             const sanitizedName = sanitize(compName);
-            proceedWithNode(component, false, sanitizedName);
+            proceedWithNode(component, recursive, sanitizedName);
           }
         }
       }
