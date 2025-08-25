@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 // to do:
-// * add recursive component markup
 // * add automatic mobile variant styles
 // * text nodes markup improvement (span vs div)
 
@@ -148,6 +147,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument, compo
         : sanitize(node.name)
       : `${rootClass}_${sanitize(node.name)}`;
     const indentStr = '  '.repeat(indent);
+
     // For INSTANCE nodes, do not process children
     if (node.type === 'INSTANCE' && !isRoot) {
       if (!classMap.has(nodeClass)) {
@@ -172,13 +172,11 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument, compo
           }
         }
       }
-
       const masterComponent = findMasterComponent(node);
       if (masterComponent && isIconComponent(masterComponent)) {
         // Render as <Icon name="nodeName" />
         return `${indentStr}<Icon className={styles.${nodeClass}} name=\"${sanitize(masterComponent.name)}\" />`;
       }
-
       const componentName = toPascalCase(node.name);
       // Convert componentProperties to JSX props
       let propsArr = [`className={styles.${nodeClass}}`];
@@ -223,13 +221,25 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument, compo
         return multiline;
       }
     }
+
+    if (!classMap.has(nodeClass)) {
+      classMap.set(nodeClass, node);
+    }
+
+    //Render nodes that have Export property as images
+    if (node.exportSettings) {
+      let format = (node.exportSettings[0].format || 'png').toLowerCase();
+      const suffix = node.exportSettings[0].suffix || '';
+      const fileName = `${sanitize(node.name)}${suffix}.${format}`;
+      return `${indentStr}<img className={styles.${nodeClass}} src=\"/img/${fileName}\" alt=\"${sanitize(node.name)}\" />`;
+    }
+
     let childrenJsx = '';
     if (node.children && node.children.length > 0) {
       childrenJsx = node.children.map((child) => nodeToJsx(child, indent + 1, false, rootClassName)).join('\n');
     }
-    if (!classMap.has(nodeClass)) {
-      classMap.set(nodeClass, node);
-    }
+
+    // Return resulting jsx code
     if (isRoot) {
       if (childrenJsx) {
         return `${indentStr}<div className={styles.${nodeClass}}>` + `\n${childrenJsx}\n${indentStr}</div>`;

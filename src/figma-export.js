@@ -426,7 +426,7 @@ async function exportIcons({
     scss += `}`;
     const scssFilePath = `${output}/scss/${name}`;
     fs.writeFileSync(scssFilePath, scss);
-    console.log(`Icons SCSS saved to: ${scssFilePath}/scss/${name}`);
+    console.log(`Icons SCSS saved to: ${scssFilePath}/${name}`);
   } catch (error) {
     console.error('Error:', error.message);
     process.exit(1);
