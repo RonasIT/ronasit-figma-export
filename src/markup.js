@@ -9,7 +9,9 @@ const { Command } = require('commander');
 const fs = require('fs');
 const path = require('path');
 
-const OUTPUT_DIR = process.env.OUTPUT_DIR || './output';
+const FILE_CACHE_OUTPUT_DIR = process.env.FILE_CACHE_OUTPUT_DIR || './output';
+const COMPONENTS_OUTPUT_DIR = process.env.COMPONENTS_OUTPUT_DIR || './output/components';
+const STYLES_OUTPUT_DIR = process.env.STYLES_OUTPUT_DIR || './output/scss';
 
 // Helper to sanitize class and file names
 function sanitize(name) {
@@ -28,7 +30,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument, compo
   // Load variableIds.json if present
   let variableIdMap = {};
   try {
-    variableIdMap = JSON.parse(fs.readFileSync(path.join(OUTPUT_DIR, 'variableIds.json'), 'utf-8'));
+    variableIdMap = JSON.parse(fs.readFileSync(path.join(FILE_CACHE_OUTPUT_DIR, 'variableIds.json'), 'utf-8'));
   } catch (e) {
     // ignore if not found
   }
@@ -820,8 +822,8 @@ program.name('markup').description('Convert a part of a Figma file structure to 
 
 program
   .requiredOption('-f, --frame <name>', 'Frame or node name in the Figma file structure')
-  .option('-i, --input <path>', 'Path to Figma JSON file', `${OUTPUT_DIR}/figmaFileContent.json`)
-  .option('-o, --output <dir>', 'Output directory', OUTPUT_DIR)
+  .option('-i, --input <path>', 'Path to Figma JSON file', `${FILE_CACHE_OUTPUT_DIR}/figmaFileContent.json`)
+  .option('-o, --output <dir>', 'Output directory', COMPONENTS_OUTPUT_DIR)
   .option('-n, --name <component>', 'Component name to use as root class')
   .option('-v, --variant <variant>', 'Variant node name inside the component frame')
   .option('-j, --json', 'Also save the selected Figma node as a JSON file')
@@ -874,13 +876,13 @@ program
         figmaData.components || {},
         figmaData.componentSets || {},
       );
-      if (!fs.existsSync(output + '/components')) {
-        fs.mkdirSync(output + '/components', { recursive: true });
+      if (!fs.existsSync(output)) {
+        fs.mkdirSync(output, { recursive: true });
       }
-      fs.writeFileSync(path.join(output, `/components/${rootClass}.jsx`), jsx);
-      fs.writeFileSync(path.join(output, `/components/${rootClass}.scss`), scss);
+      fs.writeFileSync(path.join(output, `/${rootClass}.jsx`), jsx);
+      fs.writeFileSync(path.join(output, `/${rootClass}.scss`), scss);
       if (json) {
-        fs.writeFileSync(path.join(output, `/components/${rootClass}.json`), JSON.stringify(nodeForExport, null, 2));
+        fs.writeFileSync(path.join(output, `/${rootClass}.json`), JSON.stringify(nodeForExport, null, 2));
       }
       console.log(`'${rootClass}' exported to ${output}`);
       if (recursive) {
