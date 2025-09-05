@@ -857,6 +857,26 @@ program
       console.error(`Frame or node named '${frame}' not found in the Figma file.`);
       process.exit(1);
     }
+    // Build parent map (id -> parentNode) to derive context paths for nodes
+    function buildParentMapLocal(node, parent = null, map = new Map()) {
+      if (node && node.id) map.set(node.id, parent);
+      if (node && node.children && node.children.length > 0) {
+        for (const child of node.children) {
+          buildParentMapLocal(child, node, map);
+        }
+      }
+      return map;
+    }
+    const parentMapLocal = buildParentMapLocal(figmaData.document);
+    function getParentPath(node) {
+      const names = [];
+      let current = parentMapLocal.get(node.id);
+      while (current && current.name != 'Document') {
+        names.push(current.name || current.type || 'Unnamed');
+        current = current.id ? parentMapLocal.get(current.id) : null;
+      }
+      return names.reverse().join(' / ');
+    }
     function proceedWithNode(targetNode, recursive = false, componentNameOverride = null) {
       let nodeForExport = targetNode;
       if (variant) {
@@ -901,7 +921,8 @@ program
       // Multiple nodes — output list and ask user
       console.log(`Found multiple nodes named '${frame}':`);
       foundNodes.forEach((node, idx) => {
-        console.log(`${idx + 1}: id=${node.id}, type=${node.type}`);
+        const context = getParentPath(node);
+        console.log(`${idx + 1}: ${context} / ${frame} (${node.type})`);
       });
       const readline = require('readline');
       const rl = readline.createInterface({

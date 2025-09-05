@@ -31,12 +31,22 @@ npm install -g @ronas-it/figma-export
 ## Configuration
 
 1. Get your token in Figma account settings (Account Settings → Personal Access Tokens).
-1. The file URL is the link to your Figma file.
-1. Create a `.env` file in your project root or current working directory with the following variables:
+2. The file URL is the link to your Figma file.
+3. Create a `.env` file (or rename `.env.example` to `.env`) in your project root or current working directory with the following variables:
 
 ```env
 FIGMA_API_TOKEN=your_figma_token
 FIGMA_FILE_URL=https://www.figma.com/file/your-file-id/...
+```
+
+You can set up default output folders in `.env` as well:
+
+```env
+# Default output folders
+FILE_CACHE_OUTPUT_DIR=./output
+IMAGES_OUTPUT_DIR=./output/img
+STYLES_OUTPUT_DIR=./output/scss
+COMPONENTS_OUTPUT_DIR=./output/components
 ```
 
 **Recommended:** Add to `.gitignore`:
@@ -109,7 +119,7 @@ figma-markup [options]
     Variable IDs map is important for `figma-markup` tool, do not delete or
     rename this file for better markup exports.
     
-  - `variables.scss` — SCSS variables.
+  - `variables.scss` — SCSS styles for variables.
 
 - **Export icons:**
 
@@ -117,10 +127,10 @@ figma-markup [options]
   # Global
   figma-export icons
   # With options
-  figma-export icons -f "Sprite Frame Name" -o ./output -n icons.scss
+  figma-export icons -f "Sprite Frame Name" -o ./output/scss -n icons.scss
 
   # Local/npx
-  npx figma-export icons -f "Sprite Frame Name" -o ./output -n icons.scss
+  npx figma-export icons -f "Sprite Frame Name" -o ./output/scss -n icons.scss
   ```
 
   Saves SCSS for icons from the sprite. Works with `icons_sprite` frame by default, but you can pass any frame name to generate icons SCSS from.
@@ -154,39 +164,39 @@ figma-markup [options]
 - `-o, --output <dir>` — output directory (default: `./output`)
 - `-n, --name <name>` — output file name
 - `-u, --update` — force update from Figma (ignore cache)
-- `-f, --frame <name>` — frame name (for icons/images)
+- `-f, --frame <name>` — frame name (for icons and images export command)
 - `--list` — only list exportable images, do not download
 
 ## Examples
 
-Export only variables:
+Export project variables to JSON/SCSS:
 
 ```bash
 # Global
-figma-export variables -o ./output
+figma-export variables
 
 # Local/npx
-npx figma-export variables -o ./output
+npx figma-export variables 
 ```
 
 Export icons from the `empty_states` frame:
 
 ```bash
 # Global
-figma-export icons -f empty_states -o ./output
+figma-export icons -f empty_states
 
 # Local/npx
-npx figma-export icons -f empty_states -o ./output
+npx figma-export icons -f empty_states
 ```
 
 Export images from the `Assets` frame:
 
 ```bash
 # Global
-figma-export images -f Assets -o ./output
+figma-export images -f Assets
 
 # Local/npx
-npx figma-export images -f Assets -o ./output
+npx figma-export images -f Assets
 ```
 
 ## Markup.js: Figma to React/SCSS Converter
@@ -215,11 +225,11 @@ node src/markup.js --frame "Frame Name" [--variant "Variant Name"] [--output ./o
 
 #### Main Options
 
-- `-f, --frame <name>` — Figma frame/node name (required)
-- `-v, --variant <name>` — variant node name inside the component (optional)
-- `-o, --output <dir>` — output directory (default: ./output)
-- `-n, --name <component>` — component/class name for the root node (default: frame or variant name)
-- `--json` — also save the selected node as JSON
+- `-f, --frame <name>` — Figma frame/node name for markup (required)
+- `-v, --variant <name>` — variant node name inside the component (optional, use for multi-variant components)
+- `-o, --output <dir>` — output directory (default: ./output/components)
+- `-n, --name <component>` — component/class name for the root node (rame or variant name used by default)
+- `--json` — also save the selected node as JSON, may be useful for debugging
 
 #### Examples
 
