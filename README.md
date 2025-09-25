@@ -82,15 +82,15 @@ figma-markup [options]
   # Global
   figma-export content
   # With options
-  figma-export content -o ./output -n figmaFileContent.json
+  figma-export content -o ./output -n figmaFileContent
 
   # Local/npx
-  npx figma-export content -o ./output -n figmaFileContent.json
+  npx figma-export content -o ./output -n figmaFileContent
   ```
 
-  Saves the full JSON dump of the Figma file.
+  Saves the full binary dump of the Figma file and also a JSON if possible.
 
-  ⚠️ Other exports will use the cached dump, so be sure to use them with `--update` flag to refresh data from actual Figma file.
+  ⚠️ Other export commands will use the cached dump, so be sure to use them with `--update` flag to refresh data from actual Figma file.
 
 - **Export variables (palette, typekit):**
 

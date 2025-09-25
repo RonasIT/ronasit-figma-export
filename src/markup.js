@@ -8,6 +8,7 @@ require('dotenv').config();
 const { Command } = require('commander');
 const fs = require('fs');
 const path = require('path');
+const v8 = require('v8');
 
 const FILE_CACHE_OUTPUT_DIR = process.env.FILE_CACHE_OUTPUT_DIR || './output';
 const COMPONENTS_OUTPUT_DIR = process.env.COMPONENTS_OUTPUT_DIR || './output/components';
@@ -822,7 +823,7 @@ program.name('markup').description('Convert a part of a Figma file structure to 
 
 program
   .requiredOption('-f, --frame <name>', 'Frame or node name in the Figma file structure')
-  .option('-i, --input <path>', 'Path to Figma JSON file', `${FILE_CACHE_OUTPUT_DIR}/figmaFileContent.json`)
+  .option('-i, --input <path>', 'Path to Figma data file', `${FILE_CACHE_OUTPUT_DIR}/figmaFileContent.v8`)
   .option('-o, --output <dir>', 'Output directory', COMPONENTS_OUTPUT_DIR)
   .option('-n, --name <component>', 'Component name to use as root class')
   .option('-v, --variant <variant>', 'Variant node name inside the component frame')
@@ -834,7 +835,13 @@ program
       console.error(`Input file not found: ${input}`);
       process.exit(1);
     }
-    const figmaData = JSON.parse(fs.readFileSync(input, 'utf-8'));
+    let figmaData;
+    if (path.extname(input).toLowerCase() === '.json') {
+      figmaData = JSON.parse(fs.readFileSync(input, 'utf-8'));
+    } else {
+      const buf = fs.readFileSync(input);
+      figmaData = v8.deserialize(buf);
+    }
     // Recursively find all nodes by name
     function findAllNodesByName(node, name, acc = []) {
       if (node.name === name) acc.push(node);

@@ -5,6 +5,7 @@ const axios = require('axios');
 const fs = require('fs');
 const { Command } = require('commander');
 const url = require('url');
+const v8 = require('v8');
 
 const program = new Command();
 
@@ -37,14 +38,20 @@ let fileDataCache = null;
 async function fetchFigmaFile({
   forceUpdate = false,
   cachePath = `${FILE_CACHE_OUTPUT_DIR}/figmaFileContent.json`,
+  rawFilePath = `${FILE_CACHE_OUTPUT_DIR}/figmaFileContent.v8`,
 } = {}) {
   if (!forceUpdate) {
     // Try to read from local cache file
     try {
-      if (fs.existsSync(cachePath)) {
+      if (fs.existsSync(rawFilePath)) {
+        const rawBuffer = fs.readFileSync(rawFilePath);
+        const deserialized = v8.deserialize(rawBuffer);
+        console.log(`[figma-export-tool] Loaded Figma file from binary cache: ${rawFilePath}`);
+        return deserialized;
+      } else if (fs.existsSync(cachePath)) {
         const cachedData = fs.readFileSync(cachePath, 'utf-8');
         fileDataCache = JSON.parse(cachedData);
-        console.log(`[figma-export-tool] Loaded Figma file from local cache: ${cachePath}`);
+        console.log(`[figma-export-tool] Loaded Figma file from local JSON: ${cachePath}`);
         return fileDataCache;
       }
     } catch (err) {
@@ -61,11 +68,13 @@ async function fetchFigmaFile({
     });
     fileDataCache = response.data;
     // Save to cache file
+    console.log('[figma-export-tool] Retrieved file data, preparing to save...');
     try {
-      fs.writeFileSync(cachePath, JSON.stringify(fileDataCache, null, 2));
-      console.log(`[figma-export-tool] Saved Figma file to cache: ${cachePath}`);
+      const binary = v8.serialize(fileDataCache);
+      fs.writeFileSync(rawFilePath, binary);
+      console.log(`[figma-export-tool] Saved Figma file to binary cache: ${rawFilePath}`);
     } catch (err) {
-      console.warn('[figma-export-tool] Warning: Failed to write cache file.', err.message);
+      console.warn('[figma-export-tool] Warning: Failed to write binary cache file.', err.message);
     }
     return fileDataCache;
   } catch (error) {
@@ -88,12 +97,12 @@ program
   .command('content')
   .description('Export the Figma file content to a JSON file')
   .option('-o, --output <type>', 'Output directory')
-  .option('-n, --name <type>', 'Name of output JSON file', 'figmaFileContent.json')
+  .option('-n, --name <type>', 'Name of output file', 'figmaFileContent')
   .action(async (cmd) => {
     await exportContent({ output: cmd.output, name: cmd.name });
   });
 
-async function exportContent({ output = FILE_CACHE_OUTPUT_DIR, name = 'figmaFileContent.json' } = {}) {
+async function exportContent({ output = FILE_CACHE_OUTPUT_DIR, name = 'figmaFileContent' } = {}) {
   console.log('Exporting file content...');
 
   if (!fs.existsSync(output)) {
@@ -104,9 +113,21 @@ async function exportContent({ output = FILE_CACHE_OUTPUT_DIR, name = 'figmaFile
       forceUpdate: true,
       cachePath: `${output}/${name}`,
     });
-    const jsonFilePath = `${output}/${name}`;
-    fs.writeFileSync(jsonFilePath, JSON.stringify(fileData, null, 2));
-    console.log(`Figma file content saved to: ${jsonFilePath}`);
+    const jsonFilePath = `${output}/${name}.json`;
+    try {
+      fs.writeFileSync(jsonFilePath, JSON.stringify(fileData, null, 2));
+      console.log(`Figma file content saved to: ${jsonFilePath}`);
+    } catch (err) {
+      // Fallback to binary if JSON is too large to stringify
+      const binPath = `${output}/${name}.v8`;
+      try {
+        const binary = v8.serialize(fileData);
+        fs.writeFileSync(binPath, binary);
+        console.warn(`[figma-export-tool] JSON export too large; saved binary instead: ${binPath}`);
+      } catch (binErr) {
+        throw binErr;
+      }
+    }
   } catch (error) {
     console.error('Error:', error.message);
     process.exit(1);
