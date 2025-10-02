@@ -12,7 +12,6 @@ const v8 = require('v8');
 
 const FILE_CACHE_OUTPUT_DIR = process.env.FILE_CACHE_OUTPUT_DIR || './output';
 const COMPONENTS_OUTPUT_DIR = process.env.COMPONENTS_OUTPUT_DIR || './output/components';
-const STYLES_OUTPUT_DIR = process.env.STYLES_OUTPUT_DIR || './output/scss';
 
 // Helper to sanitize class and file names
 function sanitize(name) {
@@ -21,9 +20,9 @@ function sanitize(name) {
     .replace(/[^a-z0-9_-]+/g, '_');
 }
 
-// Utility for converting part of a Figma file structure to HTML and CSS
+// Utility for converting part of a Figma file structure to JSX and SCSS
 /**
- * Converts a part of the Figma structure to HTML and CSS
+ * Converts a part of the Figma structure to JSX and SCSS
  * @param {Object} figmaNode - Node or part of the Figma structure
  * @returns {{ html: string, css: string }}
  */
@@ -761,6 +760,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument, compo
   const classEntries = Array.from(classMap.entries());
   const rootEntry = classEntries.find(([, node]) => node === figmaNode);
   let scss = '';
+  let css = '';
   if (rootEntry) {
     // Build id -> node map for fast access
     const idMap = new Map();
@@ -784,6 +784,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument, compo
       rootRuleWithRel = 'position: relative; ' + rootRule;
     }
     scss += `.${rootClass} {${rootRuleWithRel ? rootRuleWithRel + '\n' : ''}`;
+    css += `.${rootClass} {${rootRuleWithRel ? rootRuleWithRel + '}\n' : ''}`;
     classEntries.forEach(([className, node]) => {
       if (node === figmaNode) return;
       // Determine immediate parent
@@ -802,8 +803,10 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument, compo
         const indentedRule = ruleWithRel.replace(/\n/g, '\n  ');
         if (!indentedRule.includes('\n')) {
           scss += `  ${nested} {${indentedRule}}\n`;
+          css += `.${className} {${indentedRule}}\n`;
         } else {
           scss += `  ${nested} {${indentedRule}\n    }\n`;
+          css += `.${className} {${indentedRule}\n    }\n`;
         }
       }
     });
@@ -812,6 +815,7 @@ function convertFigmaToMarkup(figmaNode, rootClassOverride, figmaDocument, compo
 
   return {
     jsx,
+    css: css,
     scss: scss,
     encounteredComponents,
   };
@@ -829,8 +833,9 @@ program
   .option('-v, --variant <variant>', 'Variant node name inside the component frame')
   .option('-j, --json', 'Also save the selected Figma node as a JSON file')
   .option('-r, --recursive', 'Process all components recursively')
+  .option('-c, --css', 'Render CSS styles (instead of SCSS)')
   .action((options) => {
-    const { frame, input, output, name, json, variant, recursive } = options;
+    const { frame, input, output, name, json, variant, recursive, css } = options;
     if (!fs.existsSync(input)) {
       console.error(`Input file not found: ${input}`);
       process.exit(1);
@@ -896,7 +901,7 @@ program
       }
       // Use provided componentNameOverride or fallback to rootClass logic
       const rootClass = componentNameOverride ? componentNameOverride : name ? name : variant ? variant : frame;
-      const { jsx, scss, encounteredComponents } = convertFigmaToMarkup(
+      const { jsx, css, scss, encounteredComponents } = convertFigmaToMarkup(
         nodeForExport,
         rootClass,
         figmaData.document,
@@ -907,7 +912,11 @@ program
         fs.mkdirSync(output, { recursive: true });
       }
       fs.writeFileSync(path.join(output, `/${rootClass}.jsx`), jsx);
-      fs.writeFileSync(path.join(output, `/${rootClass}.scss`), scss);
+      if (css) {
+        fs.writeFileSync(path.join(output, `/${rootClass}.css`), css);
+      } else {
+        fs.writeFileSync(path.join(output, `/${rootClass}.scss`), scss);
+      }
       if (json) {
         fs.writeFileSync(path.join(output, `/${rootClass}.json`), JSON.stringify(nodeForExport, null, 2));
       }

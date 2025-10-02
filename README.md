@@ -229,6 +229,7 @@ node src/markup.js --frame "Frame Name" [--variant "Variant Name"] [--output ./o
 - `-v, --variant <name>` — variant node name inside the component (optional, use for multi-variant components)
 - `-o, --output <dir>` — output directory (default: ./output/components)
 - `-n, --name <component>` — component/class name for the root node (rame or variant name used by default)
+- `-c, --css` – render CSS code instead of SCSS
 - `--json` — also save the selected node as JSON, may be useful for debugging
 
 #### Examples
