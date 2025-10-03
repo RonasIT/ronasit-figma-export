@@ -39,14 +39,15 @@ FIGMA_API_TOKEN=your_figma_token
 FIGMA_FILE_URL=https://www.figma.com/file/your-file-id/...
 ```
 
-You can set up default output folders in `.env` as well:
+You can set up default folders and frames names in `.env` as well:
 
 ```env
-# Default output folders
+# Default folders and frames
 FILE_CACHE_OUTPUT_DIR=./output
 IMAGES_OUTPUT_DIR=./output/img
 STYLES_OUTPUT_DIR=./output/scss
 COMPONENTS_OUTPUT_DIR=./output/components
+ICONS_SPRITE=icon_sprite
 ```
 
 **Recommended:** Add to `.gitignore`:
@@ -133,7 +134,8 @@ figma-markup [options]
   npx figma-export icons -f "Sprite Frame Name" -o ./output/scss -n icons.scss
   ```
 
-  Saves SCSS for icons from the sprite. Works with `icons_sprite` frame by default, but you can pass any frame name to generate icons SCSS from.
+  Saves styles (CSS or SCSS) for icons from the sprite. Works with `icon_sprite` frame by default, but you can pass any frame
+  name or change the default name in `.env` to generate icons styls from any other frame.
 
 - **Export images:**
 
@@ -164,8 +166,10 @@ figma-markup [options]
 - `-o, --output <dir>` — output directory (default: `./output`)
 - `-n, --name <name>` — output file name
 - `-u, --update` — force update from Figma (ignore cache)
-- `-f, --frame <name>` — frame name (for icons and images export command)
+- `-f, --frame <name>` — frame name (for icons and images export commands)
+- `-c, -css` - render CSS code instead of SCSS (for icons and variables export commands)
 - `--list` — only list exportable images, do not download
+
 
 ## Examples
 

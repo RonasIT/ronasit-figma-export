@@ -15,6 +15,7 @@ const FIGMA_FILE_URL = process.env.FIGMA_FILE_URL;
 const FILE_CACHE_OUTPUT_DIR = process.env.FILE_CACHE_OUTPUT_DIR || './output';
 const IMAGES_OUTPUT_DIR = process.env.IMAGES_OUTPUT_DIR || './output/img';
 const STYLES_OUTPUT_DIR = process.env.STYLES_OUTPUT_DIR || './output/scss';
+const ICONS_SPRITE = process.env.ICONS_SPRITE || 'icon_sprite';
 
 if (!FIGMA_API_TOKEN || !FIGMA_FILE_URL) {
   console.error('Please provide FIGMA_API_TOKEN and FIGMA_FILE_URL in your .env file');
@@ -136,19 +137,21 @@ async function exportContent({ output = FILE_CACHE_OUTPUT_DIR, name = 'figmaFile
 
 program
   .command('variables')
-  .description('Extract variables from the Figma file and save them to a JSON file')
+  .description('Extract variables from the Figma file and save them as a JSON and stylesheet')
   .option('-o, --output <type>', 'Output directory')
   .option('-n, --name <type>', 'Name of output JSON file', 'variables.json')
   .option('-u, --update', 'Force update from Figma API, ignore local cache')
+  .option('-c, --css', 'Render CSS code instead of SCSS')
   .action(async (cmd) => {
     await exportVariables({
       output: cmd.output,
       name: cmd.name,
       forceUpdate: !!cmd.update,
+      css: cmd.css,
     });
   });
 
-async function exportVariables({ output, name = 'variables.json', forceUpdate = false } = {}) {
+async function exportVariables({ output, name = 'variables.json', forceUpdate = false, css = false } = {}) {
   console.log('Exporting variables...');
   if (!output) {
     output = FILE_CACHE_OUTPUT_DIR;
@@ -294,40 +297,47 @@ async function exportVariables({ output, name = 'variables.json', forceUpdate = 
     fs.writeFileSync(idsFilePath, JSON.stringify(variableIds, null, 2));
     console.log(`Variable ids saved to: ${idsFilePath}`);
 
-    // SCSS export
+    // Styles export
     // paletteVars and typekitVars are now taken from variables
     const paletteVars = Object.entries(variables.palette);
     const typekitVars = Object.entries(variables.typekit);
 
-    let scss = ':root {\n';
+    let styles = ':root {\n';
     // Palette
-    scss += '  /* Palette */\n';
+    styles += '  /* Palette */\n';
     let themes = [];
     for (const [name, value] of paletteVars) {
       if (typeof value === 'string') {
-        scss += `  --${name}: ${value};\n`;
+        styles += `  --${name}: ${value};\n`;
       } else if (typeof value === 'object' && value !== null) {
         themes = Object.keys(value);
         if (themes.length > 0) {
-          scss += `  --${name}: ${value[themes[0]]};\n`;
+          styles += `  --${name}: ${value[themes[0]]};\n`;
         }
       }
     }
+    if (css) {
+      styles += `}\n`;
+    }
     for (let i = 1; i < themes.length; i++) {
       const theme = themes[i];
-      scss += `  .${theme}_mode, [data-theme='${theme}'] {\n`;
+      styles += (css ? `` : `  `) + `.${theme}_mode, [data-theme='${theme}'] {\n`;
       for (const [name, value] of paletteVars) {
-        scss += `    --${name}: ${value[theme]};\n`;
+        styles += (css ? `  ` : `    `) + `--${name}: ${value[theme]};\n`;
       }
-      scss += `  }\n`;
+      styles += (css ? `` : `  `) + `}\n`;
     }
 
     // Typekit
-    scss += '\n  /* Typekit */\n';
+    styles += `\n` + (css ? `` : `  `) + `/* Typekit */\n`;
+    if (css) {
+      styles += `:root {\n`;
+    }
     // Collect desktop and other platforms separately
     const desktopVars = [];
     const platformVars = {};
     const scssBreakpoints = [];
+    const cssBreakpoints = {};
     for (const [key, value] of typekitVars) {
       if (key.includes('breakpoint')) {
         // For each mode, except desktop, create a SCSS variable
@@ -340,10 +350,12 @@ async function exportVariables({ output, name = 'variables.json', forceUpdate = 
               value[platform] !== undefined
             ) {
               scssBreakpoints.push(`$${platform}: ${value[platform]};`);
+              cssBreakpoints[platform] = value[platform];
             }
           }
         } else if (value !== '-' && value !== '' && value !== undefined) {
           scssBreakpoints.push(`$mobile: ${value};`);
+          cssBreakpoints['mobile'] = value;
         }
         continue; // Do not add to custom properties
       }
@@ -369,21 +381,36 @@ async function exportVariables({ output, name = 'variables.json', forceUpdate = 
       }
     }
     // Insert SCSS breakpoint variables before :root
-    if (scssBreakpoints.length) {
-      scss = scssBreakpoints.join('\n') + '\n' + scss;
+    if (!css && scssBreakpoints.length) {
+      styles = scssBreakpoints.join('\n') + '\n' + styles;
     }
     // Desktop
-    scss += desktopVars.join('\n') + '\n';
+    styles += desktopVars.join('\n') + '\n';
+    if (css) {
+      styles += `}\n`;
+    }
     // Other platforms
     for (const platform in platformVars) {
-      scss += `  @media (max-width: $${platform}) {\n` + platformVars[platform].join('\n') + '\n  }\n';
+      if (css) {
+        styles +=
+          `@media (max-width: ${cssBreakpoints[platform]}) {\n  :root {\n` +
+          platformVars[platform].join('\n') +
+          '\n  }\n';
+      } else {
+        styles += `  @media (max-width: $${platform}) {\n` + platformVars[platform].join('\n') + '\n  }\n';
+      }
+      if (css) {
+        styles += `}\n`;
+      }
     }
-    scss += '}\n';
-    const scssFilePath = `${scssOutput}/variables.scss`;
-    fs.writeFileSync(scssFilePath, scss);
-    console.log(`SCSS variables saved to: ${scssFilePath}`);
+    if (!css) {
+      styles += '}\n';
+    }
+    const stylesFilePath = `${scssOutput}/variables` + (css ? `.css` : `.scss`);
+    fs.writeFileSync(stylesFilePath, styles);
+    console.log((css ? `CSS` : `SCSS`) + ` variables saved to: ${stylesFilePath}`);
   } catch (error) {
-    console.error('Error:', error.message);
+    console.error('Error: ', error.message);
     process.exit(1);
   }
 }
@@ -391,20 +418,22 @@ async function exportVariables({ output, name = 'variables.json', forceUpdate = 
 program
   .command('icons')
   .description('Extract icons from Figma and generate icons.scss')
-  .option('-f, --frame <type>', 'Frame name', 'icon_sprite')
+  .option('-f, --frame <type>', 'Frame name', ICONS_SPRITE)
   .option('-o, --output <type>', 'Output directory')
-  .option('-n, --name <type>', 'Name of output SCSS file', 'icons.scss')
+  .option('-n, --name <type>', 'Name of output file', 'icons')
   .option('-u, --update', 'Force update from Figma API, ignore local cache')
+  .option('-c, --css', 'Render CSS code instead of SCSS')
   .action(async (cmd) => {
     await exportIcons({
       output: cmd.output,
       name: cmd.name,
       frame: cmd.frame,
       forceUpdate: !!cmd.update,
+      css: !!cmd.css,
     });
   });
 
-async function exportIcons({ frame = 'icon_sprite', output, name = 'icons.scss', forceUpdate = false } = {}) {
+async function exportIcons({ frame = ICONS_SPRITE, output, name = 'icons', forceUpdate = false, css = false } = {}) {
   console.log('Exporting icons sprite...');
   if (!output) {
     output = STYLES_OUTPUT_DIR;
@@ -429,9 +458,15 @@ async function exportIcons({ frame = 'icon_sprite', output, name = 'icons.scss',
     if (!iconsSprite || !iconsSprite.children) {
       throw new Error('icons_sprite not found or has no children');
     }
-    // Generate SCSS
-    let scss = `.icon {display: inline-block; vertical-align: top; width: 24px; height: 24px;\n background: url(icons.svg);  --bg-position: 0 0; background-position: var(--bg-position); background-repeat: no-repeat;\n`;
-    scss += `  &_mask {background: var(--text-primary); mask-image: url(icons.svg); mask-repeat: no-repeat; mask-position: var(--bg-position);}\n`;
+    // Generate SCSS/CSS code
+    let styles = '';
+    if (css) {
+      styles += `.icon {display: inline-block; vertical-align: top; width: 24px; height: 24px;\n background: url(icons.svg);  --bg-position: 0 0; background-position: var(--bg-position); background-repeat: no-repeat;}\n`;
+      styles += `.icon_mask {background: var(--text-primary); mask-image: url(icons.svg); mask-repeat: no-repeat; mask-position: var(--bg-position);}\n`;
+    } else {
+      styles += `.icon {display: inline-block; vertical-align: top; width: 24px; height: 24px;\n background: url(icons.svg);  --bg-position: 0 0; background-position: var(--bg-position); background-repeat: no-repeat;\n`;
+      styles += `  &_mask {background: var(--text-primary); mask-image: url(icons.svg); mask-repeat: no-repeat; mask-position: var(--bg-position);}\n`;
+    }
     // Get coordinates of icons_sprite
     const spriteBox = iconsSprite.absoluteBoundingBox || { x: 0, y: 0 };
     for (const icon of iconsSprite.children) {
@@ -452,12 +487,18 @@ async function exportIcons({ frame = 'icon_sprite', output, name = 'icons.scss',
       if (w !== 24 || h !== 24) {
         sizeRule = ` width: ${w}px; height: ${h}px;`;
       }
-      scss += `  &_${name} {--bg-position: -${x}px -${y}px;${sizeRule}}\n`;
+      if (css) {
+        styles += `.icon_${name} {--bg-position: -${x}px -${y}px;${sizeRule}}\n`;
+      } else {
+        styles += `  &_${name} {--bg-position: -${x}px -${y}px;${sizeRule}}\n`;
+      }
     }
-    scss += `}`;
-    const scssFilePath = `${output}/${name}`;
-    fs.writeFileSync(scssFilePath, scss);
-    console.log(`Icons SCSS saved to: ${scssFilePath}`);
+    if (!css) {
+      styles += `}`;
+    }
+    const stylesFilePath = `${output}/${name}` + (css ? `.css` : `.scss`);
+    fs.writeFileSync(stylesFilePath, styles);
+    console.log(`Icons ` + (css ? `CSS` : `SCSS`) + ` saved to: ${stylesFilePath}`);
   } catch (error) {
     console.error('Error:', error.message);
     process.exit(1);
