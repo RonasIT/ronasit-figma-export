@@ -309,7 +309,7 @@ To create a new release:
    git push && git push --tags
    ```
 
-3. **Create GitHub release**: Go to the [GitHub Releases](../../releases) page and:
+3. **Create GitHub release**: Go to the [GitHub Releases](../../../releases) page and:
    - Click "Create a new release"
    - Select the tag created in step 1
    - Add release notes describing the changes
