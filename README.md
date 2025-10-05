@@ -115,11 +115,11 @@ figma-markup [options]
     }
     ```
 
-  - `variableIds.json` — variable IDs. 
-    
+  - `variableIds.json` — variable IDs.
+
     Variable IDs map is important for `figma-markup` tool, do not delete or
     rename this file for better markup exports.
-    
+
   - `variables.scss` — SCSS styles for variables.
 
 - **Export icons:**
@@ -180,7 +180,7 @@ Export project variables to JSON/SCSS:
 figma-export variables
 
 # Local/npx
-npx figma-export variables 
+npx figma-export variables
 ```
 
 Export icons from the `empty_states` frame:
@@ -265,31 +265,3 @@ If multiple nodes with the same name are found, the utility will prompt you to s
 - `ComponentName.jsx` — React JSX for the selected node
 - `ComponentName.scss` — SCSS for the selected node
 - `ComponentName.json` — (optional) JSON of the selected node, may be used for debugging
-
----
-
-If you have questions or find bugs, please open an issue or contact the author.
-
-## Development
-
-For contributing or local development:
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/ronasit/ronasit-figma-export.git
-   cd ronasit-figma-export
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-3. Run scripts locally using `node`:
-
-   ```bash
-   node src/figma-export.js <command> [options]
-   node src/markup.js [options]
-   ```
