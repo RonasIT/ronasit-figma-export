@@ -1,6 +1,6 @@
 {
   "name": "@ronas-it/figma-export",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A CLI utility for exporting data from Ronas IT Figma designs for frontend use",
   "main": "src/figma-export.js",
   "bin": {
