@@ -827,7 +827,7 @@ program.name('markup').description('Convert a part of a Figma file structure to 
 
 program
   .requiredOption('-f, --frame <name>', 'Frame or node name in the Figma file structure')
-  .option('-i, --input <path>', 'Path to Figma data file', `${FILE_CACHE_OUTPUT_DIR}/figmaFileContent.v8`)
+  .option('-i, --input <path>', 'Path to Figma data file', `${FILE_CACHE_OUTPUT_DIR}/figmaFileContent`)
   .option('-o, --output <dir>', 'Output directory', COMPONENTS_OUTPUT_DIR)
   .option('-n, --name <component>', 'Component name to use as root class')
   .option('-v, --variant <variant>', 'Variant node name inside the component frame')
@@ -836,16 +836,18 @@ program
   .option('-c, --css', 'Render CSS styles (instead of SCSS)')
   .action((options) => {
     const { frame, input, output, name, json, variant, recursive, css } = options;
-    if (!fs.existsSync(input)) {
+
+    let figmaData;
+    if (fs.existsSync(input + '.v8')) {
+      console.log('Reading Figma file data from binary cache...');
+      const buf = fs.readFileSync(input + '.v8');
+      figmaData = v8.deserialize(buf);
+    } else if (fs.existsSync(input + '.json')) {
+      console.log('Reading Figma file data from JSON cache...');
+      figmaData = JSON.parse(fs.readFileSync(input + '.json', 'utf-8'));
+    } else {
       console.error(`Input file not found: ${input}`);
       process.exit(1);
-    }
-    let figmaData;
-    if (path.extname(input).toLowerCase() === '.json') {
-      figmaData = JSON.parse(fs.readFileSync(input, 'utf-8'));
-    } else {
-      const buf = fs.readFileSync(input);
-      figmaData = v8.deserialize(buf);
     }
     // Recursively find all nodes by name
     function findAllNodesByName(node, name, acc = []) {
